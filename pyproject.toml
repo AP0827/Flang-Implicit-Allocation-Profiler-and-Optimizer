@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "flang-alloc-profiler"
+version = "0.1.0"
+description = "Profile and optimize implicit heap allocations in Flang HLFIR/FIR output"
+readme = "README.md"
+requires-python = ">=3.10"
+
+[project.scripts]
+flang-alloc-profiler = "flang_alloc_profiler.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

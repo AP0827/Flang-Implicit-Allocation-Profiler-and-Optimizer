@@ -1,0 +1,13 @@
+{
+  "allocations": [
+    {
+      "file": "examples/simple.f90",
+      "line": 3,
+      "kind": "temporary_array",
+      "expression": "b + c",
+      "source_construct": "array expression",
+      "bytes_allocated": 8192,
+      "provable_stack_safety": true
+    }
+  ]
+}
