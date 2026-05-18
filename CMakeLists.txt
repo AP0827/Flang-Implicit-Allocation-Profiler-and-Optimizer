@@ -15,16 +15,16 @@ find_package(LLVM REQUIRED CONFIG)
 find_package(MLIR REQUIRED CONFIG)
 find_package(Flang CONFIG QUIET)
 
+if(Flang_FOUND OR FLANG_FOUND OR FLANG_EXPORTED_TARGETS)
+  set(FIAP_HAVE_FLANG 1)
+endif()
+
 message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
 message(STATUS "Using MLIRConfig.cmake in: ${MLIR_DIR}")
-if(Flang_FOUND)
+if(FIAP_HAVE_FLANG)
   message(STATUS "Using FlangConfig.cmake in: ${Flang_DIR}")
 else()
   message(STATUS "Flang not found; building the generic MLIR prototype mode")
-endif()
-
-if(Flang_FOUND)
-  set(FIAP_HAVE_FLANG 1)
 endif()
 
 list(APPEND CMAKE_MODULE_PATH "${LLVM_CMAKE_DIR}" "${MLIR_CMAKE_DIR}")
@@ -41,6 +41,9 @@ configure_file(
 add_definitions(${LLVM_DEFINITIONS})
 include_directories(${LLVM_INCLUDE_DIRS})
 include_directories(${MLIR_INCLUDE_DIRS})
+if(FIAP_HAVE_FLANG)
+  include_directories(${FLANG_INCLUDE_DIRS})
+endif()
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/include)
 link_directories(${LLVM_BUILD_LIBRARY_DIR})
@@ -59,6 +62,10 @@ set(FIAP_SOURCES
 add_library(fiap STATIC ${FIAP_SOURCES})
 target_include_directories(fiap PUBLIC include ${CMAKE_CURRENT_BINARY_DIR}/include)
 target_compile_definitions(fiap PUBLIC FIAP_HAVE_FLANG=${FIAP_HAVE_FLANG})
+target_compile_features(fiap PUBLIC cxx_std_17)
+if(MSVC)
+  target_compile_options(fiap PUBLIC /Zc:__cplusplus)
+endif()
 
 target_link_libraries(fiap
   PUBLIC
@@ -70,8 +77,15 @@ target_link_libraries(fiap
     LLVMSupport
 )
 
-if(Flang_FOUND)
-  foreach(flang_target IN ITEMS FIRDialect HLFIRDialect FIRBuilder FortranCommon)
+if(FIAP_HAVE_FLANG)
+  foreach(flang_target IN ITEMS
+    FIRDialect
+    HLFIRDialect
+    FIRBuilder
+    FIRSupport
+    FIRDialectSupport
+    FortranSupport
+  )
     if(TARGET ${flang_target})
       target_link_libraries(fiap PUBLIC ${flang_target})
     endif()

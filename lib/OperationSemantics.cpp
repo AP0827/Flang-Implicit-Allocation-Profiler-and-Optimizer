@@ -412,7 +412,9 @@ void fiap::registerProjectDialects(mlir::DialectRegistry &registry) {
   registry.insert<mlir::func::FuncDialect>();
 #if FIAP_HAVE_FLANG
   fir::support::registerNonCodegenDialects(registry);
-  fir::support::addFIRExtensions(registry);
+  // FIAP analyzes FIR/HLFIR allocation operations only. Optional FIR extension
+  // hooks pull OpenMP/OpenACC support libraries into the link and are not
+  // needed for this standalone reporting tool.
 #endif
 }
 
