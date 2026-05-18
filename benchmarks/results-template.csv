@@ -1,0 +1,4 @@
+benchmark,baseline_runtime_s,analysis_runtime_s,optimized_runtime_s,implicit_alloc_sites,estimated_temp_bytes,notes
+synthetic_array_add,,,,,,
+realloc_assignment,,,,,,
+real_world_program_1,,,,,,

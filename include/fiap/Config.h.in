@@ -1,0 +1,3 @@
+#pragma once
+
+#define FIAP_HAVE_FLANG @FIAP_HAVE_FLANG@
