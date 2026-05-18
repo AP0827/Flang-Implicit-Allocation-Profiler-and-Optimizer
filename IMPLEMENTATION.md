@@ -83,6 +83,29 @@ end do
 
 The transformer refuses unclear or unsafe lines, which is the correct behavior for the failure-case demo.
 
+## Profile-Guided Refinement
+
+`scripts/refine_profile.py` implements the PGAE prototype from the research plan. It consumes:
+
+- a FIAP JSON report
+- a profile CSV keyed by `file,line,column`
+
+If a profile row proves that a `possibly-unnecessary` site had a stable shape during all observations, the script upgrades that site to `provably-eliminable`, records the profile evidence, and keeps or assigns an appropriate guarded transform. This gives a concrete two-pass workflow:
+
+1. Static pass: classify sites and emit JSON.
+2. Profile refinement: upgrade ambiguous sites using runtime evidence.
+
+The sample profile is `profiles/sample_profile.csv`.
+
+## Runtime Benchmarking
+
+`scripts/benchmark_fortran.py` compiles and times matching baseline/optimized programs from:
+
+- `testcases/fortran/`
+- `testcases/fortran_optimized/`
+
+It writes `reports/runtime-benchmark.csv`. The script discovers `flang-new`, `flang`, `gfortran`, or `ifx`; if none are installed, it writes an explicit skipped result instead of inventing speedup numbers.
+
 ## Build-Time Options
 
 Required:

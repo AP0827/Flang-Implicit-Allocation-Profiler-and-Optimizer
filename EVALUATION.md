@@ -12,6 +12,8 @@ The evaluation reports:
 
 The automated evaluator is `scripts/evaluate.py`. It runs `fiap-opt --format=json` over every `.mlir` testcase and writes `reports/evaluation-summary.csv`.
 
+`scripts/benchmark_fortran.py` measures wall-clock speedup for three baseline/optimized Fortran program pairs when a Fortran compiler is available.
+
 ## Baseline Comparison Method
 
 Baseline is the original lowered IR: all detected allocation-bearing sites remain.
@@ -29,11 +31,30 @@ For speedup measurement on a full machine, compile the original and transformed 
 - allocated bytes
 - peak RSS
 
-The repository includes three representative Fortran programs in `testcases/fortran/`:
+The repository includes three representative Fortran programs in `testcases/fortran/` and optimized counterparts in `testcases/fortran_optimized/`:
 
 - vector expression temporary
 - matrix stencil/expression temporary
 - allocatable assignment/function-result pattern
+
+Runtime command:
+
+```bash
+python scripts/benchmark_fortran.py --out reports/runtime-benchmark.csv
+```
+
+If no Fortran compiler is installed, the script reports the missing dependency. It does not fabricate speedup numbers.
+
+## Profile-Guided Refinement Evaluation
+
+The sample profile demonstrates how ambiguous sites become eliminable under stable runtime shapes:
+
+```bash
+build/fiap-opt.exe testcases/02_function_result.mlir --format=json > reports/function_result.json
+python scripts/refine_profile.py --report reports/function_result.json --profile profiles/sample_profile.csv --out reports/function_result.refined.json
+```
+
+This corresponds to the PGAE loop in the research plan.
 
 ## Testcase Matrix
 
@@ -54,7 +75,9 @@ For the final submission, include screenshots or a short video showing:
 3. `./scripts/run.sh testcases/04_escaping_temp.mlir` showing the failure/necessary case.
 4. `python src/fiap_source_transformer.py --report reports/01_array_temp.json --source testcases/fortran/vector_add.f90 --output reports/vector_add.transformed.f90`.
 5. `python scripts/evaluate.py --tool build/fiap-opt --testcases testcases --out reports/evaluation-summary.csv`.
+6. `python scripts/refine_profile.py --report reports/function_result.json --profile profiles/sample_profile.csv --out reports/function_result.refined.json`.
+7. `python scripts/benchmark_fortran.py --out reports/runtime-benchmark.csv`, or the missing-compiler message if no Fortran compiler is installed.
 
 ## Current Limitation
 
-This prototype estimates performance impact from IR evidence unless a full Flang toolchain is available to compile and benchmark transformed kernels. That limitation is explicit and measurable: the report still gives allocation counts and byte reductions for all testcases.
+This prototype estimates allocation impact from IR evidence and measures runtime speedup when a Fortran compiler is available. On systems without `flang-new`, `flang`, `gfortran`, or `ifx`, runtime benchmarking is blocked by installation, not by missing project code.

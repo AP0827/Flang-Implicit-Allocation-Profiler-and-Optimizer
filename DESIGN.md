@@ -56,6 +56,12 @@ Typed FIR/HLFIR matching is best when exact Flang headers are available, but cla
 
 The C++ pass attaches machine-readable `fiap.*` metadata and transformation hints. The simple source transformer consumes a JSON report and rewrites straightforward rank-1 assignments into explicit `do concurrent` loops. More complex rewrites are prepared in IR using attributes such as `fiap.rewrite_template` and `fiap.lowering_hint` so the prototype remains robust across Flang revisions.
 
+## Profile-Guided Refinement
+
+The profile-guided allocation elimination loop is implemented as a report refinement stage. The static pass emits JSON entries for ambiguous sites. A profile CSV records observed allocation counts, observed bytes, and whether runtime shapes were stable. `scripts/refine_profile.py` joins the profile back to source locations and upgrades matching `possibly-unnecessary` sites to `provably-eliminable` under a profile-validated shape invariant.
+
+This keeps the core static pass conservative while still demonstrating the research idea: additional evidence can monotonically lower a node in the allocation lattice from ambiguous to eliminable.
+
 ## Failure Cases
 
 The tool intentionally reports conservative results for:

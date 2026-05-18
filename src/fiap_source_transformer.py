@@ -73,9 +73,22 @@ def rewrite_line(line: str) -> str | None:
     )
 
 
+def ensure_index_declared(lines: list[str], index: str = "i") -> None:
+    declaration = re.compile(rf"^\s*integer\b.*\b{re.escape(index)}\b", re.IGNORECASE)
+    if any(declaration.search(line) for line in lines):
+        return
+
+    for offset, line in enumerate(lines):
+        if line.strip().lower() == "implicit none":
+            indent = line[: len(line) - len(line.lstrip())]
+            lines.insert(offset + 1, f"{indent}integer :: {index}")
+            return
+
+
 def transform(report: dict, source_path: Path) -> tuple[str, list[str]]:
     lines = source_path.read_text(encoding="utf-8").splitlines()
     notes: list[str] = []
+    rewrote = False
     for entry in report.get("entries", []):
         if not should_rewrite(entry, source_path):
             continue
@@ -90,6 +103,9 @@ def transform(report: dict, source_path: Path) -> tuple[str, list[str]]:
         original = lines[line_no - 1].strip()
         lines[line_no - 1] = replacement
         notes.append(f"rewrote line {line_no}: {original}")
+        rewrote = True
+    if rewrote:
+        ensure_index_declared(lines)
     return "\n".join(lines) + "\n", notes
 
 

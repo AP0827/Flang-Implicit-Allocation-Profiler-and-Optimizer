@@ -71,6 +71,9 @@ The classifier also emits:
 - `docs/local-flang-build.md`: practical guide for a real LLVM/Flang build
 - `benchmarks/`: evaluation notes and result templates
 - `scripts/build.sh`, `scripts/run.sh`, `scripts/evaluate.py`: required build, demo, and evaluation scripts
+- `scripts/refine_profile.py`: profile-guided allocation lattice refinement
+- `scripts/benchmark_fortran.py`: runtime benchmark harness for baseline vs optimized Fortran programs
+- `profiles/sample_profile.csv`: sample profile data for the PGAE demo
 
 ## Build
 
@@ -169,6 +172,26 @@ scripts\collect-reports.ps1 -Format json
 python scripts/evaluate.py --tool build/fiap-opt --testcases testcases --out reports/evaluation-summary.csv
 ```
 
+### Profile-Guided Refinement
+
+```bash
+build/fiap-opt.exe testcases/02_function_result.mlir --format=json > reports/function_result.json
+python scripts/refine_profile.py \
+  --report reports/function_result.json \
+  --profile profiles/sample_profile.csv \
+  --out reports/function_result.refined.json
+```
+
+### Runtime Benchmark Harness
+
+If a Fortran compiler is installed, benchmark the baseline and optimized programs:
+
+```bash
+python scripts/benchmark_fortran.py --out reports/runtime-benchmark.csv
+```
+
+Supported compilers are discovered in this order: `flang-new`, `flang`, `gfortran`, `ifx`.
+
 ### Simple Source Rewrite Demo
 
 Generate a JSON report:
@@ -228,11 +251,12 @@ What is implemented now:
 - IR annotation with `fiap.*` metadata
 - self-contained generic MLIR examples
 - report collection scripting for experiments
+- profile-guided refinement from runtime shape observations
+- runtime benchmark harness for the three Fortran kernels when a compiler is available
 - optional typed Flang integration layer built around official FIR/HLFIR headers
 
 What still remains future work:
 
 - exact dialect-aware rewrites using FIR/HLFIR builders
 - interprocedural shape propagation
-- profile-guided reclassification
-- full benchmark automation against real Fortran suites
+- full benchmark automation against large external suites such as LAPACK or SPEC CPU
