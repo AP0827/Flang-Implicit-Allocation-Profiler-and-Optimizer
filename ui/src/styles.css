@@ -139,6 +139,11 @@ h1 {
   width: 38px;
 }
 
+.small-icon-button {
+  width: 32px;
+  min-height: 32px;
+}
+
 button:hover:not(:disabled) {
   transform: translateY(-1px);
 }
@@ -155,6 +160,20 @@ button:disabled {
   border-radius: 8px;
   color: #9f1239;
   background: #fff1f2;
+}
+
+.copy-toast {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  z-index: 20;
+  padding: 11px 14px;
+  border: 1px solid #99f6e4;
+  border-radius: 8px;
+  color: #115e59;
+  background: #f0fdfa;
+  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.18);
+  font-weight: 800;
 }
 
 .status-strip {
@@ -336,6 +355,25 @@ button:disabled {
   gap: 8px;
 }
 
+.terminal-tools {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.terminal-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 0 9px;
+  border: 1px solid #475569;
+  border-radius: 8px;
+  color: #e2e8f0;
+  background: #334155;
+  cursor: pointer;
+}
+
 .terminal-heading h2 {
   font-size: 0.98rem;
 }
@@ -381,6 +419,16 @@ button:disabled {
 .panel-title {
   gap: 8px;
   margin-bottom: 12px;
+}
+
+.split-title {
+  justify-content: space-between;
+}
+
+.split-title > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .panel-title h2 {

@@ -113,6 +113,37 @@ function classifyTone(value: string | undefined): string {
   return "neutral";
 }
 
+async function copyToClipboard(text: string): Promise<void> {
+  if (!text.trim()) {
+    throw new Error("Nothing to copy yet");
+  }
+
+  if (navigator.clipboard && window.isSecureContext) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return;
+    } catch {
+      // Fall through to the textarea copy path for browsers that block the API.
+    }
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "true");
+  textarea.style.position = "fixed";
+  textarea.style.left = "-9999px";
+  textarea.style.top = "0";
+  document.body.appendChild(textarea);
+  textarea.focus();
+  textarea.select();
+
+  const copied = document.execCommand("copy");
+  document.body.removeChild(textarea);
+  if (!copied) {
+    throw new Error("Browser blocked clipboard access");
+  }
+}
+
 function StatusPill({ ok, label }: { ok: boolean; label: string }) {
   const Icon = ok ? CheckCircle2 : XCircle;
   return (
@@ -151,11 +182,13 @@ function MetricCard({
 function TaskCard({
   task,
   running,
-  onRun
+  onRun,
+  onCopy
 }: {
   task: TaskDefinition;
   running: boolean;
   onRun: (taskId: TaskId) => void;
+  onCopy: (text: string, label: string) => void;
 }) {
   const Icon = taskIcons[task.id];
   return (
@@ -171,7 +204,13 @@ function TaskCard({
       </div>
       <p className="task-detail">{task.detail}</p>
       <div className="task-actions">
-        <button className="icon-button" type="button" title="Copy command" onClick={() => navigator.clipboard?.writeText(task.command)}>
+        <button
+          className="icon-button"
+          type="button"
+          title="Copy command"
+          aria-label={`Copy command for ${task.title}`}
+          onClick={() => onCopy(task.command, `${task.title} command`)}
+        >
           <Copy size={16} />
         </button>
         <button className="run-button" type="button" onClick={() => onRun(task.id)} disabled={running}>
@@ -296,20 +335,36 @@ function BenchmarkTable({ rows }: { rows: BenchmarkRow[] }) {
   );
 }
 
-function CodePreview({ title, icon: Icon, text }: { title: string; icon: typeof Activity; text?: string }) {
+function CodePreview({
+  title,
+  icon: Icon,
+  text,
+  onCopy
+}: {
+  title: string;
+  icon: typeof Activity;
+  text?: string;
+  onCopy: (text: string, label: string) => void;
+}) {
   return (
     <section className="panel code-panel">
-      <div className="panel-title">
-        <Icon size={17} />
-        <h2>{title}</h2>
+      <div className="panel-title split-title">
+        <div>
+          <Icon size={17} />
+          <h2>{title}</h2>
+        </div>
+        <button className="icon-button small-icon-button" type="button" title={`Copy ${title}`} onClick={() => onCopy(text || "", title)}>
+          <Copy size={15} />
+        </button>
       </div>
       {text ? <pre>{text}</pre> : <div className="empty-state">No generated file yet.</div>}
     </section>
   );
 }
 
-function TerminalPanel({ job }: { job?: Job }) {
+function TerminalPanel({ job, onCopy }: { job?: Job; onCopy: (text: string, label: string) => void }) {
   const Icon = job ? jobStatusIcon[job.status] : Terminal;
+  const logText = job?.logs.join("\n") || "";
   return (
     <section className="terminal-panel">
       <div className="terminal-heading">
@@ -317,9 +372,15 @@ function TerminalPanel({ job }: { job?: Job }) {
           <Icon className={job?.status === "running" ? "spin" : ""} size={18} />
           <h2>{job ? `${job.title} · ${job.status}` : "Terminal Output"}</h2>
         </div>
-        {job?.finishedAt && <span>{new Date(job.finishedAt).toLocaleTimeString()}</span>}
+        <div className="terminal-tools">
+          {job?.finishedAt && <span>{new Date(job.finishedAt).toLocaleTimeString()}</span>}
+          <button className="terminal-copy" type="button" onClick={() => onCopy(logText, "terminal logs")}>
+            <Copy size={14} />
+            Copy Logs
+          </button>
+        </div>
       </div>
-      <pre>{job ? job.logs.join("\n") : "Run a task to see live output here."}</pre>
+      <pre>{job ? logText : "Run a task to see live output here."}</pre>
     </section>
   );
 }
@@ -330,6 +391,7 @@ export default function App() {
   const [reports, setReports] = useState<DashboardReports | null>(null);
   const [activeJob, setActiveJob] = useState<Job | undefined>();
   const [error, setError] = useState<string>("");
+  const [copyNotice, setCopyNotice] = useState<string>("");
 
   const refresh = useCallback(async () => {
     const [nextTasks, nextStatus, nextReports] = await Promise.all([
@@ -375,6 +437,16 @@ export default function App() {
     }
   };
 
+  const handleCopy = async (text: string, label: string) => {
+    try {
+      await copyToClipboard(text);
+      setCopyNotice(`Copied ${label}`);
+    } catch (err) {
+      setCopyNotice(err instanceof Error ? err.message : "Copy failed");
+    }
+    window.setTimeout(() => setCopyNotice(""), 1800);
+  };
+
   const running = activeJob?.status === "queued" || activeJob?.status === "running";
   const evaluation = reports?.evaluation ?? [];
   const benchmark = reports?.benchmark ?? [];
@@ -410,6 +482,7 @@ export default function App() {
       </header>
 
       {error && <div className="error-banner">{error}</div>}
+      {copyNotice && <div className="copy-toast">{copyNotice}</div>}
 
       <section className="status-strip">
         {status?.checks.map((check) => (
@@ -434,13 +507,13 @@ export default function App() {
               <h2>{groupLabels[group as keyof typeof groupLabels]}</h2>
               <div className="task-grid">
                 {items.map((task) => (
-                  <TaskCard task={task} running={Boolean(running)} onRun={runTask} key={task.id} />
+                  <TaskCard task={task} running={Boolean(running)} onRun={runTask} onCopy={handleCopy} key={task.id} />
                 ))}
               </div>
             </section>
           ))}
         </div>
-        <TerminalPanel job={activeJob} />
+        <TerminalPanel job={activeJob} onCopy={handleCopy} />
       </section>
 
       <section className="report-grid">
@@ -450,9 +523,9 @@ export default function App() {
         <ReportSummary title="Failure Case" report={reports?.reports.failure} />
         <ReportSummary title="Profile Refinement" report={reports?.reports.profile} />
         <ReportSummary title="Real HLFIR" report={reports?.reports.realHlfir} />
-        <CodePreview title="Original Fortran" icon={FileCode2} text={reports?.files.baselineVector} />
-        <CodePreview title="Transformed Fortran" icon={Code2} text={reports?.files.transformedVector} />
-        <CodePreview title="Real HLFIR Snippet" icon={FileCode2} text={reports?.files.realHlfir?.slice(0, 5000)} />
+        <CodePreview title="Original Fortran" icon={FileCode2} text={reports?.files.baselineVector} onCopy={handleCopy} />
+        <CodePreview title="Transformed Fortran" icon={Code2} text={reports?.files.transformedVector} onCopy={handleCopy} />
+        <CodePreview title="Real HLFIR Snippet" icon={FileCode2} text={reports?.files.realHlfir?.slice(0, 5000)} onCopy={handleCopy} />
       </section>
     </main>
   );
