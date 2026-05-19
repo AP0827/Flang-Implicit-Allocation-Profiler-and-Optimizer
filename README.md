@@ -192,6 +192,22 @@ python scripts/benchmark_fortran.py --out reports/runtime-benchmark.csv
 
 Supported compilers are discovered in this order: `flang-new`, `flang`, `gfortran`, `ifx`.
 
+### Vite Demo Dashboard
+
+For a cleaner demo, launch the local dashboard:
+
+```powershell
+scripts\run-dashboard.ps1
+```
+
+Then open:
+
+```text
+http://127.0.0.1:5173
+```
+
+The dashboard can run the build, MLIR tests, evaluation, profile refinement, source rewrite demo, runtime benchmark, and real Flang HLFIR smoke test from buttons in the browser. It also displays the generated CSV, JSON, and transformed Fortran outputs.
+
 ### Simple Source Rewrite Demo
 
 Generate a JSON report:
