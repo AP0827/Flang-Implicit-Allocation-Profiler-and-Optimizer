@@ -3,7 +3,6 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BUILD_DIR="${BUILD_DIR:-"$ROOT_DIR/build"}"
-INPUT="${1:-"$ROOT_DIR/testcases/01_array_temp.mlir"}"
 FORMAT="${FORMAT:-text}"
 
 TOOL="$BUILD_DIR/fiap-opt"
@@ -19,4 +18,16 @@ if [[ ! -x "$TOOL" ]]; then
   exit 2
 fi
 
-"$TOOL" "$INPUT" --format="$FORMAT" "${@:2}"
+if [[ $# -gt 0 && "$1" == *.mlir ]]; then
+  INPUT="$1"
+  shift
+  "$TOOL" "$INPUT" --format="$FORMAT" "$@"
+  exit 0
+fi
+
+PYTHON="${PYTHON:-python3}"
+if ! command -v "$PYTHON" >/dev/null 2>&1; then
+  PYTHON="python"
+fi
+
+"$PYTHON" "$ROOT_DIR/scripts/run_backend_demo.py" --tool "$TOOL" --build-dir "$BUILD_DIR" "$@"

@@ -1,8 +1,8 @@
 param(
   [Parameter(Mandatory = $true)]
   [string]$LlvmBuildDir,
-  [string]$ProjectDir = "D:\FlangImplicitAllocationProfiler",
-  [string]$BuildDir = "D:\FlangImplicitAllocationProfiler\build"
+  [string]$ProjectDir = "D:\Flang-Implicit-Allocation-Profiler-and-Optimizer",
+  [string]$BuildDir = "D:\Flang-Implicit-Allocation-Profiler-and-Optimizer\build"
 )
 
 $llvmDir = Join-Path $LlvmBuildDir "lib\cmake\llvm"

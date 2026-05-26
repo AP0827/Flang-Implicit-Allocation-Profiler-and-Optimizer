@@ -1,278 +1,205 @@
 # Flang Implicit Allocation Profiler and Optimizer
 
-`fiap` is a Flang/MLIR analysis and transformation-preparation tool for finding implicit heap allocations introduced during HLFIR/FIR lowering. It maps allocation sites back to source constructs, classifies their eliminability, emits reports, and prepares simple rewrites such as stack promotion and scalarization.
+Assignment 41 backend compiler project.
 
-This version goes beyond a bare scaffold:
+FIAP is a real end-to-end Flang pipeline:
 
-- it constructs an `Allocation Provenance Graph` (APG)
-- it classifies each site with reasons and suggested rewrites
-- it emits text, JSON, or DOT reports
-- it annotates the IR with machine-readable `fiap.*` attributes
-- it includes prototype transformation-preparation passes for stack promotion and scalarization
-- it can run in a generic MLIR mode with unregistered FIR/HLFIR operations, which makes demos and testing much easier
-- it can optionally compile with upstream Flang headers and use typed FIR/HLFIR op matching instead of string-only matching
+```text
+Fortran .f90 source -> Flang HLFIR/MLIR -> fiap-opt APG analysis -> JSON/CSV reports -> transform/evaluation
+```
 
-## What The Tool Detects
+The main demo does **not** depend on handcrafted MLIR. The repository still keeps small MLIR regression fixtures for internal compiler-pass testing, but the submission workflow starts from real Fortran files in `testcases/fortran/`.
 
-- array expression temporaries such as `A = B + C`
-- elemental temporaries
-- array-valued function result temporaries
-- allocatable assignment sites that may trigger realloc-on-assignment
-- temporary lifetime extension through `hlfir.associate`
+## What It Detects
 
-## Core Architecture
+FIAP finds hidden allocation sites introduced by Fortran lowering:
 
-### Allocation Provenance Graph
+- array expression temporaries, for example `a = b + c`
+- elemental array temporaries
+- array-valued function results
+- allocatable assignment/reallocation
+- escaping temporaries that must not be optimized locally
 
-Each interesting HLFIR/FIR operation becomes an APG node with:
+Every report includes:
 
-- operation kind
-- source location
-- shape estimate
-- estimated bytes
-- loop depth
-- escape status
-- consumers and producers
-- suggested transformation
+- source file, line, and column
+- HLFIR/FIR operation name
+- construct type
+- estimated allocation bytes
+- classification: `provably-eliminable`, `possibly-unnecessary`, or `necessary`
+- reason and transformation advice
 
-Edges encode:
+## Required Repository Contents
 
-- `produces`
-- `consumes`
-- `shape-constrains`
-- `aliases`
-- `lifetime-ends`
+- `README.md` - what the project is and how to run it
+- `DESIGN.md` - approach, alternatives, APG, classifier, failure handling
+- `IMPLEMENTATION.md` - LLVM/MLIR/Flang implementation details
+- `EVALUATION.md` - metrics, five Fortran test cases, baseline comparison, results
+- `scripts/build.sh` and `scripts/run.sh` - required scripts
+- `scripts/build.ps1` and `scripts/run.ps1` - Windows equivalents
+- `src/` - source-level transformation helper
+- `tools/` - `fiap-opt` driver
+- `lib/` and `include/` - C++ analysis/pass implementation
+- `testcases/fortran/` - real Fortran inputs for the main end-to-end pipeline
+- `testcases/fortran_optimized/` - baseline comparison programs
+- `test/mlir_regression/` - optional internal MLIR pass fixtures, not the main demo
+- `profiles/` - profile-guided refinement sample data
 
-### Classification Lattice
+## Requirements
 
-- `provably-eliminable`
-- `possibly-unnecessary`
-- `necessary`
+Required:
 
-The classifier also emits:
+- CMake 3.24 or newer
+- C++17 compiler
+- LLVM build with `LLVMConfig.cmake`
+- MLIR build with `MLIRConfig.cmake`
+- Flang executable for full end-to-end mode
+- Python 3.10 or newer
 
-- a short reason
-- an optimization hint
-- a suggested transform kind
+Optional:
 
-## Project Layout
-
-- `DESIGN.md`: approach, alternatives, classification strategy, and failure cases
-- `IMPLEMENTATION.md`: LLVM/MLIR details and pass pipeline
-- `EVALUATION.md`: metrics, test matrix, and demo evidence checklist
-- `include/fiap/`: public APIs
-- `lib/`: APG construction, classification, reporting, and passes
-- `src/fiap_source_transformer.py`: simple source-level transformer for rank-1 array assignments
-- `tools/fiap-opt.cpp`: standalone driver
-- `examples/`: generic MLIR and Fortran examples
-- `test/`: FileCheck-style smoke-test inputs
-- `testcases/`: required submission testcases, including three Fortran kernels and five MLIR cases
-- `docs/`: architecture and research framing
-- `docs/local-flang-build.md`: practical guide for a real LLVM/Flang build
-- `benchmarks/`: evaluation notes and result templates
-- `scripts/build.sh`, `scripts/run.sh`, `scripts/evaluate.py`: required build, demo, and evaluation scripts
-- `scripts/refine_profile.py`: profile-guided allocation lattice refinement
-- `scripts/benchmark_fortran.py`: runtime benchmark harness for baseline vs optimized Fortran programs
-- `profiles/sample_profile.csv`: sample profile data for the PGAE demo
+- `FlangConfig.cmake` for typed FIR/HLFIR C++ integration
+- `ctest` for internal MLIR regression tests
 
 ## Build
 
-The project only requires LLVM + MLIR. Flang is optional for the generic prototype mode.
-
-Preferred submission command:
+Linux/macOS/WSL:
 
 ```bash
 ./scripts/build.sh
 ```
 
-On this Windows machine, `bash` is unavailable because WSL has no installed distro. Use the equivalent PowerShell script:
+Windows PowerShell:
 
 ```powershell
 scripts\build.ps1
 ```
 
-Set these variables if your LLVM build is not in the default location:
+Explicit Windows LLVM paths:
+
+```powershell
+scripts\build.ps1 `
+  -LLVM_DIR D:\llvm-project\build\lib\cmake\llvm `
+  -MLIR_DIR D:\llvm-project\build\lib\cmake\mlir `
+  -Flang_DIR D:\llvm-project\build\lib\cmake\flang
+```
+
+## Run Full End-To-End Demo
+
+This is the main command to show:
 
 ```bash
-export LLVM_DIR=/path/to/llvm/lib/cmake/llvm
-export MLIR_DIR=/path/to/llvm/lib/cmake/mlir
-export Flang_DIR=/path/to/llvm/lib/cmake/flang   # optional
+./scripts/run.sh
 ```
+
+Windows:
 
 ```powershell
-cmake -S . -B build `
-  -DLLVM_DIR=D:\llvm-project\build\lib\cmake\llvm `
-  -DMLIR_DIR=D:\llvm-project\build\lib\cmake\mlir
-
-cmake --build build --config Release
+scripts\run.ps1
 ```
 
-If you have a full Flang build available, you can also point CMake at it:
+The default run performs the real pipeline:
+
+1. Reads five `.f90` files from `testcases/fortran/`.
+2. Uses Flang to emit HLFIR/MLIR into `reports/hlfir/*.mlir`.
+3. Runs `build/fiap-opt.exe` over that generated HLFIR.
+4. Writes FIAP JSON reports into `reports/hlfir/*.json`.
+5. Writes `reports/hlfir/summary.csv` with strict expected-classification checks.
+6. Rewrites the safe `vector_add.f90` case into `reports/source/vector_add.transformed.f90`.
+7. Refines the real `function_result.f90` report using `profiles/sample_profile.csv`.
+8. Compiles and times original vs optimized Fortran programs into `reports/benchmark/runtime.csv`.
+
+## Five Real Fortran Test Cases
+
+| Source file | Construct | Expected primary classification |
+| --- | --- | --- |
+| `testcases/fortran/vector_add.f90` | rank-1 array expression | `provably-eliminable` |
+| `testcases/fortran/matrix_stencil.f90` | 2D elemental temporary | `provably-eliminable` |
+| `testcases/fortran/function_result.f90` | array-valued function result | `possibly-unnecessary` |
+| `testcases/fortran/allocatable_update.f90` | allocatable assignment/reallocation | `possibly-unnecessary` |
+| `testcases/fortran/escaping_temp.f90` | escaping temporary passed to call | `necessary` |
+
+The failure case is `escaping_temp.f90`: FIAP marks it `necessary` and does not suggest a local transform.
+
+## Run One Generated HLFIR Report
+
+After `scripts\run.ps1`, inspect a generated HLFIR report directly:
 
 ```powershell
-cmake -S . -B build `
-  -DLLVM_DIR=D:\llvm-project\build\lib\cmake\llvm `
-  -DMLIR_DIR=D:\llvm-project\build\lib\cmake\mlir `
-  -DFlang_DIR=D:\llvm-project\build\lib\cmake\flang
+build\fiap-opt.exe reports\hlfir\vector_add.mlir --format=text
+build\fiap-opt.exe reports\hlfir\escaping_temp.mlir --format=text
 ```
 
-When `Flang_DIR` is available, the project enables a typed integration path that:
+The second command is the failure case.
 
-- registers FIR and HLFIR dialects through upstream `InitFIR.h`
-- uses real `fir::` and `hlfir::` op classes where possible
-- falls back to generic MLIR operation matching only when needed
+## Real Fortran To HLFIR Command
 
-## Running
-
-Preferred submission command:
-
-```bash
-./scripts/run.sh testcases/01_array_temp.mlir
-```
-
-Windows equivalent:
+You can also run only the Fortran-to-HLFIR analysis:
 
 ```powershell
-scripts\run.ps1 testcases\01_array_temp.mlir
+python scripts\analyze_fortran_hlfir.py `
+  --flang D:\llvm-project\build\bin\flang.exe `
+  --tool build\fiap-opt.exe `
+  --source-dir testcases\fortran `
+  --out-dir reports\hlfir `
+  --summary reports\hlfir\summary.csv `
+  --strict
 ```
 
-### Text Report
+## Source Transformation Demo
+
+The transform consumes the generated real-HLFIR report, not a mock report:
 
 ```powershell
-build\fiap-opt.exe examples\implicit_temp.mlir
+python src\fiap_source_transformer.py `
+  --report reports\hlfir\vector_add.json `
+  --source testcases\fortran\vector_add.f90 `
+  --output reports\source\vector_add.transformed.f90
 ```
 
-### JSON Report
+It rewrites:
+
+```fortran
+a = b + c
+```
+
+into:
+
+```fortran
+do concurrent (i = lbound(a, 1):ubound(a, 1))
+  a(i) = b(i) + c(i)
+end do
+```
+
+## Optional Internal MLIR Regression
+
+The `.mlir` files in `test/mlir_regression/*.mlir` are not the main demo. They are internal regression fixtures for checking the standalone MLIR pass deterministically.
+
+Run them only if asked:
 
 ```powershell
-build\fiap-opt.exe examples\implicit_temp.mlir --format=json
+scripts\run.ps1 -IncludeMlirRegression -IncludeCTest
 ```
 
-### Graph Visualization
+## Current Status
 
-```powershell
-build\fiap-opt.exe examples\implicit_temp.mlir --format=dot
-```
+Implemented:
 
-### Annotated IR
-
-```powershell
-build\fiap-opt.exe examples\implicit_temp.mlir --prepare-transforms --print-annotated-ir
-```
-
-### Batch Collection
-
-```powershell
-scripts\collect-reports.ps1 -Format json
-```
-
-### Evaluation
-
-```bash
-python scripts/evaluate.py --tool build/fiap-opt --testcases testcases --out reports/evaluation-summary.csv
-```
-
-### Profile-Guided Refinement
-
-```bash
-build/fiap-opt.exe testcases/02_function_result.mlir --format=json > reports/function_result.json
-python scripts/refine_profile.py \
-  --report reports/function_result.json \
-  --profile profiles/sample_profile.csv \
-  --out reports/function_result.refined.json
-```
-
-### Runtime Benchmark Harness
-
-If a Fortran compiler is installed, benchmark the baseline and optimized programs:
-
-```bash
-python scripts/benchmark_fortran.py --out reports/runtime-benchmark.csv
-```
-
-Supported compilers are discovered in this order: `flang-new`, `flang`, `gfortran`, `ifx`.
-
-### Vite Demo Dashboard
-
-For a cleaner demo, launch the local dashboard:
-
-```powershell
-scripts\run-dashboard.ps1
-```
-
-Then open:
-
-```text
-http://127.0.0.1:5173
-```
-
-The dashboard can run the build, MLIR tests, evaluation, profile refinement, source rewrite demo, runtime benchmark, and real Flang HLFIR smoke test from buttons in the browser. It also displays the generated CSV, JSON, and transformed Fortran outputs.
-
-### Simple Source Rewrite Demo
-
-Generate a JSON report:
-
-```bash
-FORMAT=json ./scripts/run.sh testcases/01_array_temp.mlir > reports/01_array_temp.json
-```
-
-Apply the simple source rewrite:
-
-```bash
-python src/fiap_source_transformer.py \
-  --report reports/01_array_temp.json \
-  --source testcases/fortran/vector_add.f90 \
-  --output reports/vector_add.transformed.f90
-```
-
-## Output Style
-
-The text report includes:
-
-- source location
-- classification
-- construct kind
-- estimated bytes
-- loop depth
-- producer and consumer counts
-- reason for the classification
-- advice for eliminating or validating the allocation
-
-The JSON report is suitable for:
-
-- dashboards
-- benchmark aggregation
-- paper figures
-- profile-guided follow-up tooling
-
-## Prototype Transformations
-
-Two follow-on passes are included:
-
-- `PromoteTempToStackPass`
-- `ScalarizeArrayExprPass`
-
-At this stage they attach lowering hints and rewrite templates rather than performing full FIR/HLFIR mutation. This keeps the prototype practical without requiring hard-coding against a single fragile Flang revision.
-
-## Best Current Status
-
-What is implemented now:
-
-- APG construction with explicit node and edge types
-- shape parsing from FIR/HLFIR type spellings
-- source mapping
-- conservative escape and alias heuristics
-- classification with reasons and rewrite advice
-- text, JSON, and DOT reports
+- standalone C++ MLIR tool `fiap-opt`
+- real `.f90 -> Flang HLFIR -> FIAP` workflow
+- Allocation Provenance Graph construction
+- conservative allocation classification
+- source-location mapping
+- byte estimation for static HLFIR/FIR array types
+- JSON/text/DOT reporting
 - IR annotation with `fiap.*` metadata
-- self-contained generic MLIR examples
-- report collection scripting for experiments
-- profile-guided refinement from runtime shape observations
-- runtime benchmark harness for the three Fortran kernels when a compiler is available
-- optional typed Flang integration layer built around official FIR/HLFIR headers
+- source rewrite for simple rank-1 array expressions
+- profile-guided refinement
+- five real Fortran test cases
+- baseline-vs-optimized Fortran benchmark harness
 
-What still remains future work:
+Future work:
 
-- exact dialect-aware rewrites using FIR/HLFIR builders
-- interprocedural shape propagation
-- full benchmark automation against large external suites such as LAPACK or SPEC CPU
+- full in-place FIR/HLFIR mutation for every transform kind
+- deeper interprocedural shape propagation
+- larger benchmark suites such as LAPACK or SPEC CPU

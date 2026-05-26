@@ -6,6 +6,8 @@ BUILD_DIR="${BUILD_DIR:-"$ROOT_DIR/build"}"
 LLVM_DIR="${LLVM_DIR:-}"
 MLIR_DIR="${MLIR_DIR:-}"
 FLANG_DIR="${Flang_DIR:-${FLANG_DIR:-}}"
+LOG_DIR="$BUILD_DIR/logs"
+LOG_FILE="$LOG_DIR/build.log"
 
 if ! command -v cmake >/dev/null 2>&1; then
   echo "error: cmake is not installed or not on PATH" >&2
@@ -51,5 +53,28 @@ if [[ -n "$FLANG_DIR" ]]; then
   CMAKE_ARGS+=(-DFlang_DIR="$FLANG_DIR")
 fi
 
-cmake "${CMAKE_ARGS[@]}"
-cmake --build "$BUILD_DIR" --config Release
+mkdir -p "$LOG_DIR"
+printf 'FIAP build log\n' > "$LOG_FILE"
+
+echo
+echo "FIAP build"
+echo "log: $LOG_FILE"
+
+echo "[1/2] Configuring CMake"
+if cmake "${CMAKE_ARGS[@]}" >>"$LOG_FILE" 2>&1; then
+  echo "ok"
+else
+  echo "failed. See $LOG_FILE" >&2
+  exit 1
+fi
+
+echo "[2/2] Building fiap-opt"
+if cmake --build "$BUILD_DIR" --config Release >>"$LOG_FILE" 2>&1; then
+  echo "ok"
+else
+  echo "failed. See $LOG_FILE" >&2
+  exit 1
+fi
+
+echo
+echo "Build complete"

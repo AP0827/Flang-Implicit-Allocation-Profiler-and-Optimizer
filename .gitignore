@@ -8,7 +8,3 @@ reports/
 *.pyc
 __pycache__/
 .pytest_cache/
-ui/node_modules/
-ui/dist/
-ui/tsconfig.tsbuildinfo
-ui/node_modules/

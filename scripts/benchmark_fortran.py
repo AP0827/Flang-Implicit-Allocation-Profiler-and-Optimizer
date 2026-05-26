@@ -3,32 +3,81 @@ from __future__ import annotations
 
 import argparse
 import csv
+import os
 import shutil
 import subprocess
 import time
 from pathlib import Path
 
 
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def display_path(path: Path) -> str:
+    try:
+        return str(path.resolve().relative_to(ROOT))
+    except ValueError:
+        return str(path)
+
+
 def discover_compiler(explicit: str | None) -> str | None:
     if explicit:
         return explicit
+    for env_name in ("FIAP_FLANG", "FLANG", "FC"):
+        value = os.environ.get(env_name)
+        if value and Path(value).exists():
+            return value
     for name in ("flang-new", "flang", "gfortran", "ifx"):
         found = shutil.which(name)
         if found:
             return found
+    for fallback in (
+        Path("D:/llvm-project/build/bin/flang.exe"),
+        Path("D:/llvm-project/build/bin/flang-new.exe"),
+        Path("/mnt/d/llvm-project/build/bin/flang"),
+        Path("/mnt/d/llvm-project/build/bin/flang-new"),
+    ):
+        if fallback.exists():
+            return str(fallback)
     return None
 
 
 def compile_program(compiler: str, source: Path, exe: Path) -> None:
     exe = exe.resolve()
     exe.parent.mkdir(parents=True, exist_ok=True)
-    subprocess.run(
-        [compiler, "-O3", str(source.resolve()), "-o", str(exe)],
-        check=True,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
+    command = [compiler, "-O3", str(source.resolve()), "-o", str(exe)]
+    dev_command = windows_dev_command(command)
+    if dev_command:
+        subprocess.run(
+            dev_command,
+            shell=True,
+            check=True,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+    else:
+        subprocess.run(
+            command,
+            check=True,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+
+
+def windows_dev_command(command: list[str]) -> str:
+    if os.name != "nt":
+        return ""
+    for candidate in (
+        Path(r"C:\Program Files\Microsoft Visual Studio\18\Community\Common7\Tools\VsDevCmd.bat"),
+        Path(r"C:\Program Files\Microsoft Visual Studio\18\BuildTools\Common7\Tools\VsDevCmd.bat"),
+        Path(r"C:\Program Files\Microsoft Visual Studio\17\Community\Common7\Tools\VsDevCmd.bat"),
+        Path(r"C:\Program Files\Microsoft Visual Studio\17\BuildTools\Common7\Tools\VsDevCmd.bat"),
+    ):
+        if candidate.exists():
+            return f'call "{candidate}" -arch=x64 >NUL && {subprocess.list2cmdline(command)}'
+    return ""
 
 
 def time_program(exe: Path, runs: int) -> float:
@@ -55,9 +104,9 @@ def main() -> int:
     parser.add_argument("--compiler")
     parser.add_argument("--baseline-dir", default="testcases/fortran", type=Path)
     parser.add_argument("--optimized-dir", default="testcases/fortran_optimized", type=Path)
-    parser.add_argument("--out", default="reports/runtime-benchmark.csv", type=Path)
+    parser.add_argument("--out", default="reports/benchmark/runtime.csv", type=Path)
     parser.add_argument("--runs", default=5, type=int)
-    parser.add_argument("--build-dir", default="reports/fortran-bench-build", type=Path)
+    parser.add_argument("--build-dir", default="reports/benchmark/build", type=Path)
     args = parser.parse_args()
 
     compiler = discover_compiler(args.compiler)
@@ -86,7 +135,7 @@ def main() -> int:
                     "status": "skipped: install flang-new, flang, gfortran, or ifx",
                 }
             )
-        print(f"wrote {args.out}")
+        print(f"wrote {display_path(args.out)}")
         print("no Fortran compiler found; install flang-new/flang/gfortran/ifx and rerun")
         return 0
 
@@ -155,7 +204,7 @@ def main() -> int:
         writer.writeheader()
         writer.writerows(rows)
 
-    print(f"wrote {args.out}")
+    print(f"wrote {display_path(args.out)}")
     return 0
 
 

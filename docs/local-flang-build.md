@@ -2,7 +2,7 @@
 
 ## Goal
 
-This project reaches its strongest form when built against a real local `llvm-project` checkout that includes:
+This project reaches its strongest form when built against a local `llvm-project` checkout that includes:
 
 - LLVM
 - MLIR
@@ -39,7 +39,7 @@ Useful outputs to confirm:
 ## 2. Configure `fiap` Against That Build
 
 ```powershell
-cmake -S D:\FlangImplicitAllocationProfiler -B D:\FlangImplicitAllocationProfiler\build `
+cmake -S D:\Flang-Implicit-Allocation-Profiler-and-Optimizer -B D:\Flang-Implicit-Allocation-Profiler-and-Optimizer\build `
   -DLLVM_DIR=D:\llvm-project\build\lib\cmake\llvm `
   -DMLIR_DIR=D:\llvm-project\build\lib\cmake\mlir `
   -DFlang_DIR=D:\llvm-project\build\lib\cmake\flang
@@ -48,10 +48,10 @@ cmake -S D:\FlangImplicitAllocationProfiler -B D:\FlangImplicitAllocationProfile
 Then build:
 
 ```powershell
-cmake --build D:\FlangImplicitAllocationProfiler\build --config Release
+cmake --build D:\Flang-Implicit-Allocation-Profiler-and-Optimizer\build --config Release
 ```
 
-## 3. Emit Real HLFIR
+## 3. Emit HLFIR
 
 Use your local Flang binary to lower a Fortran file into HLFIR or FIR:
 
@@ -68,31 +68,31 @@ bbc -emit-hlfir your_program.f90 -o your_program.mlir
 ## 4. Run `fiap`
 
 ```powershell
-D:\FlangImplicitAllocationProfiler\build\fiap-opt.exe your_program.mlir
+D:\Flang-Implicit-Allocation-Profiler-and-Optimizer\build\fiap-opt.exe your_program.mlir
 ```
 
 For JSON:
 
 ```powershell
-D:\FlangImplicitAllocationProfiler\build\fiap-opt.exe your_program.mlir --format=json
+D:\Flang-Implicit-Allocation-Profiler-and-Optimizer\build\fiap-opt.exe your_program.mlir --format=json
 ```
 
 For graph output:
 
 ```powershell
-D:\FlangImplicitAllocationProfiler\build\fiap-opt.exe your_program.mlir --format=dot
+D:\Flang-Implicit-Allocation-Profiler-and-Optimizer\build\fiap-opt.exe your_program.mlir --format=dot
 ```
 
-## 5. Move From Prototype To Real Compiler Pass
+## 5. Move From Prototype To Compiler Pass
 
 Once the project is building against your exact Flang revision, the best next edits are:
 
 - replace remaining generic operation-name checks with typed `fir::` and `hlfir::` matches
 - implement one end-to-end typed rewrite for a simple `hlfir.assign`
-- validate the resulting IR with real Flang test inputs
+- validate the resulting IR with Flang-generated test inputs
 - add benchmark runs and collect JSON reports
 
-## Recommended First Real Rewrite
+## Recommended First Compiler Rewrite
 
 Start with:
 

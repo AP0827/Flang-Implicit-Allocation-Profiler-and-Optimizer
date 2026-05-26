@@ -30,6 +30,15 @@ KEYWORDS = {
 }
 
 
+def read_json_file(path: Path) -> dict:
+    for encoding in ("utf-8-sig", "utf-16"):
+        try:
+            return json.loads(path.read_text(encoding=encoding))
+        except UnicodeDecodeError:
+            continue
+    return json.loads(path.read_text(encoding="utf-8", errors="replace"))
+
+
 def should_rewrite(entry: dict, source_path: Path) -> bool:
     if entry.get("classification") != "provably-eliminable":
         return False
@@ -118,7 +127,7 @@ def main() -> int:
     parser.add_argument("--output", required=True, type=Path)
     args = parser.parse_args()
 
-    report = json.loads(args.report.read_text(encoding="utf-8-sig"))
+    report = read_json_file(args.report)
     rewritten, notes = transform(report, args.source)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(rewritten, encoding="utf-8")

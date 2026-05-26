@@ -106,7 +106,7 @@ foreach(fiap_case IN ITEMS
   add_test(
     NAME ${fiap_case}
     COMMAND fiap-opt
-            ${CMAKE_CURRENT_SOURCE_DIR}/testcases/${fiap_case}.mlir
+            ${CMAKE_CURRENT_SOURCE_DIR}/test/mlir_regression/${fiap_case}.mlir
             --format=json
   )
 endforeach()

@@ -1,3 +1,3 @@
 file,line,column,observations,stable_shape,observed_bytes,allocation_count
-function_result_case.f90,10,9,20,true,2048,20
-realloc_assignment.f90,8,3,20,true,4096,20
+function_result.f90,6,3,20,true,2048,20
+allocatable_update.f90,7,3,20,true,4096,20

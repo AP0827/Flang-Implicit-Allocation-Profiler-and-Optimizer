@@ -1,19 +1,43 @@
 # Benchmarks
 
-Use this directory to store the three evaluation workloads required by the assignment.
+The benchmark path compares original Fortran kernels against manually optimized equivalents.
 
-Suggested categories:
+Inputs:
 
-- a synthetic array-expression microbenchmark
-- an allocatable-resize benchmark
-- a real numerical code with repeated array temporaries
+- `testcases/fortran/vector_add.f90`
+- `testcases/fortran/matrix_stencil.f90`
+- `testcases/fortran/function_result.f90`
+- `testcases/fortran/allocatable_update.f90`
+- `testcases/fortran/escaping_temp.f90`
 
-For each benchmark, collect:
+Optimized counterparts:
 
-- baseline runtime
-- runtime with analysis only
-- runtime after transformations
-- number of hidden allocations
-- bytes allocated in temporaries
+- `testcases/fortran_optimized/vector_add.f90`
+- `testcases/fortran_optimized/matrix_stencil.f90`
+- `testcases/fortran_optimized/function_result.f90`
+- `testcases/fortran_optimized/allocatable_update.f90`
+- `testcases/fortran_optimized/escaping_temp.f90`
 
-The file `results-template.csv` gives you a simple starting schema for collecting these measurements across workloads.
+Run:
+
+```bash
+python scripts/benchmark_fortran.py --out reports/benchmark/runtime.csv
+```
+
+Windows with the local Flang build:
+
+```powershell
+python scripts\benchmark_fortran.py `
+  --compiler D:\llvm-project\build\bin\flang.exe `
+  --out reports\benchmark\runtime.csv `
+  --runs 20
+```
+
+The benchmark script:
+
+- discovers a compiler if one is not provided
+- uses the Visual Studio developer environment automatically on Windows
+- compiles baseline and optimized programs with the same compiler flags
+- writes `baseline_seconds`, `optimized_seconds`, `speedup_percent`, and `status`
+
+Small kernels can be noisy, so runtime speedup is supporting evidence. The primary deterministic metric is the static allocation reduction in `reports/hlfir/summary.csv`.

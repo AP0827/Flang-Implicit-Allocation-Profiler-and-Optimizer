@@ -41,7 +41,7 @@ The central abstraction is the `Allocation Provenance Graph` (APG).
 
 ### 1. Discovery
 
-Walk HLFIR/FIR operations and collect candidate implicit allocation sites. The current prototype recognizes operations by name so it can run either against a full Flang build or against generic MLIR assembly with unregistered FIR/HLFIR operations.
+Walk HLFIR/FIR operations and collect candidate implicit allocation sites. The main workflow obtains this IR by running Flang on real `.f90` files. The implementation can also recognize operations by name for optional internal MLIR regression fixtures.
 
 ### 2. Graph construction
 
@@ -72,7 +72,7 @@ Apply one of two conservative rewrites:
 - stack promotion of bounded temporaries
 - scalarization of simple element-wise array expressions
 
-In the current codebase these rewrites are represented as transformation-preparation passes. They attach lowering hints and explicit rewrite templates so the project remains robust across Flang versions while still demonstrating the optimization path.
+In the current codebase these rewrites are represented as transformation-preparation passes. They attach lowering hints and explicit rewrite templates so the project remains robust across Flang versions while still showing the optimization path.
 
 ## Current Prototype Coverage
 
@@ -81,6 +81,7 @@ The current implementation focuses on:
 - single-statement array expression temporaries
 - allocatable assignment reallocation detection
 - function-result temporaries with one direct consumer
-- generic MLIR examples that exercise the pipeline without needing a complete Flang build
+- real Flang-generated HLFIR from five Fortran test cases
+- optional generic MLIR regression examples for pass-level debugging
 
 The project deliberately avoids whole-program alias reasoning in the current milestone.

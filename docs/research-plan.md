@@ -47,7 +47,7 @@ HLFIR makes compiler-inserted Fortran array temporaries visible for the first ti
 2. Attach source ranges and estimated byte counts.
 3. Classify each site using conservative rules.
 4. Implement one profitable automatic rewrite.
-5. Evaluate on at least three real programs.
+5. Evaluate on at least three application programs.
 
 ## Practical Publishable Angle
 

@@ -7,6 +7,25 @@ import json
 from pathlib import Path
 
 
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def display_path(path: Path) -> str:
+    try:
+        return str(path.resolve().relative_to(ROOT))
+    except ValueError:
+        return str(path)
+
+
+def read_json_file(path: Path) -> dict:
+    for encoding in ("utf-8-sig", "utf-16"):
+        try:
+            return json.loads(path.read_text(encoding=encoding))
+        except UnicodeDecodeError:
+            continue
+    return json.loads(path.read_text(encoding="utf-8", errors="replace"))
+
+
 def key_for(entry: dict) -> tuple[str, int, int]:
     return (
         Path(entry.get("file", "")).name,
@@ -96,7 +115,7 @@ def main() -> int:
     parser.add_argument("--out", required=True, type=Path)
     args = parser.parse_args()
 
-    report = json.loads(args.report.read_text(encoding="utf-8-sig"))
+    report = read_json_file(args.report)
     profile = load_profile(args.profile)
 
     refined_entries = []
@@ -116,7 +135,7 @@ def main() -> int:
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(refined_report, indent=2), encoding="utf-8")
-    print(f"wrote {args.out}")
+    print(f"wrote {display_path(args.out)}")
     print(
         "profile-refined sites="
         f"{sum(1 for entry in refined_entries if entry.get('profileRefined'))}"

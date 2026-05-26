@@ -8,6 +8,15 @@ import subprocess
 from pathlib import Path
 
 
+EXPECTED_PRIMARY_CLASSIFICATION = {
+    "01_array_temp.mlir": "provably-eliminable",
+    "02_function_result.mlir": "possibly-unnecessary",
+    "03_realloc_assignment.mlir": "possibly-unnecessary",
+    "04_escaping_temp.mlir": "necessary",
+    "05_elemental_temp.mlir": "provably-eliminable",
+}
+
+
 def run_report(tool: Path, testcase: Path) -> dict:
     completed = subprocess.run(
         [str(tool), str(testcase), "--format=json"],
@@ -39,12 +48,16 @@ def summarize(testcase: Path, report: dict) -> dict[str, object]:
 
     optimized_bytes = total_bytes - removable_bytes
     reduction = 0.0 if total_bytes == 0 else removable_bytes / total_bytes
+    expected = EXPECTED_PRIMARY_CLASSIFICATION.get(testcase.name, "")
+    expected_met = "" if not expected else str(counts.get(expected, 0) > 0).lower()
     return {
         "testcase": testcase.name,
         "sites": len(entries),
         "provably_eliminable": counts.get("provably-eliminable", 0),
         "possibly_unnecessary": counts.get("possibly-unnecessary", 0),
         "necessary": counts.get("necessary", 0),
+        "expected_primary_classification": expected,
+        "expected_met": expected_met,
         "baseline_estimated_bytes": total_bytes,
         "optimized_estimated_bytes": optimized_bytes,
         "estimated_byte_reduction": removable_bytes,
@@ -57,20 +70,25 @@ def main() -> int:
         description="Run fiap-opt over all MLIR testcases and write a CSV evaluation summary."
     )
     parser.add_argument("--tool", default="build/fiap-opt", type=Path)
-    parser.add_argument("--testcases", default="testcases", type=Path)
-    parser.add_argument("--out", default="reports/evaluation-summary.csv", type=Path)
+    parser.add_argument("--testcases", default="test/mlir_regression", type=Path)
+    parser.add_argument("--out", default="reports/evaluation/summary.csv", type=Path)
+    parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="fail if any known testcase misses its expected primary classification",
+    )
     args = parser.parse_args()
 
     tool = args.tool
     if not tool.exists():
-      windows_release = tool.parent / "Release" / "fiap-opt.exe"
-      windows_plain = tool.with_suffix(".exe")
-      if windows_release.exists():
-          tool = windows_release
-      elif windows_plain.exists():
-          tool = windows_plain
-      else:
-          raise SystemExit(f"fiap-opt not found: {args.tool}")
+        windows_release = tool.parent / "Release" / "fiap-opt.exe"
+        windows_plain = tool.with_suffix(".exe")
+        if windows_release.exists():
+            tool = windows_release
+        elif windows_plain.exists():
+            tool = windows_plain
+        else:
+            raise SystemExit(f"fiap-opt not found: {args.tool}")
 
     testcases = sorted(args.testcases.glob("*.mlir"))
     if not testcases:
@@ -85,10 +103,26 @@ def main() -> int:
 
     print(f"wrote {args.out}")
     for row in rows:
+        expected_text = ""
+        if row["expected_primary_classification"]:
+            expected_text = (
+                f" expected={row['expected_primary_classification']} "
+                f"met={row['expected_met']}"
+            )
         print(
             f"{row['testcase']}: sites={row['sites']} "
             f"reduction={row['estimated_reduction_percent']}%"
+            f"{expected_text}"
         )
+    if args.strict:
+        failed = [
+            row
+            for row in rows
+            if row["expected_primary_classification"] and row["expected_met"] != "true"
+        ]
+        if failed:
+            names = ", ".join(row["testcase"] for row in failed)
+            raise SystemExit(f"strict evaluation failed for: {names}")
     return 0
 
 
