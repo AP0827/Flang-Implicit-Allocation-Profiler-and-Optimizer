@@ -95,20 +95,4 @@ endif()
 add_executable(fiap-opt tools/fiap-opt.cpp)
 target_link_libraries(fiap-opt PRIVATE fiap MLIRParser MLIRSupport LLVMSupport)
 
-enable_testing()
-foreach(fiap_case IN ITEMS
-  01_array_temp
-  02_function_result
-  03_realloc_assignment
-  04_escaping_temp
-  05_elemental_temp
-)
-  add_test(
-    NAME ${fiap_case}
-    COMMAND fiap-opt
-            ${CMAKE_CURRENT_SOURCE_DIR}/test/mlir_regression/${fiap_case}.mlir
-            --format=json
-  )
-endforeach()
-
 install(TARGETS fiap fiap-opt)

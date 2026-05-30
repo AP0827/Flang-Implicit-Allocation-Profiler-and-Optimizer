@@ -155,13 +155,3 @@ Expected:
 - reason: the temporary escapes the local statement/procedure
 
 This proves FIAP is conservative and does not blindly rewrite every temporary.
-
-## Optional MLIR Regression
-
-The textual MLIR files in `test/mlir_regression/*.mlir` are only internal regression fixtures.
-
-```powershell
-scripts\run.ps1 -IncludeMlirRegression -IncludeCTest
-```
-
-They are useful for debugging the C++ pass, but they are not the main project evaluation.

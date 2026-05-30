@@ -209,7 +209,7 @@ Safety checks:
 Required scripts:
 
 - `scripts/build.sh` - configure and build
-- `scripts/run.sh` - backend demo or single report
+- `scripts/run.sh` - end-to-end Fortran pipeline or single generated-HLFIR report
 
 Windows equivalents:
 
@@ -218,11 +218,10 @@ Windows equivalents:
 
 Backend workflow script:
 
-- `scripts/run_backend_demo.py`
+- `scripts/run_pipeline.py`
 
 Evaluation helpers:
 
-- `scripts/evaluate.py`
 - `scripts/analyze_fortran_hlfir.py`
 - `scripts/refine_profile.py`
 - `scripts/benchmark_fortran.py`
@@ -238,21 +237,3 @@ flang -fc1 -emit-hlfir -mmlir --mlir-print-debuginfo
 Then it passes the generated `.mlir` file into `fiap-opt`.
 
 This is the default submission path. The five required test cases are real `.f90` files that Flang lowers into HLFIR before FIAP analyzes them.
-
-## Testing
-
-CMake also registers optional internal regression cases based on small textual MLIR fixtures:
-
-- `01_array_temp`
-- `02_function_result`
-- `03_realloc_assignment`
-- `04_escaping_temp`
-- `05_elemental_temp`
-
-Run these only as internal pass tests:
-
-```bash
-ctest --test-dir build --output-on-failure
-```
-
-The main submission demo does not rely on these fixtures. `scripts/run.ps1` and `scripts/run.sh` default to the real Fortran-to-HLFIR pipeline. Use `-IncludeMlirRegression -IncludeCTest` on Windows if you want to run the optional MLIR regression suite.

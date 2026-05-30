@@ -41,7 +41,7 @@ The central abstraction is the `Allocation Provenance Graph` (APG).
 
 ### 1. Discovery
 
-Walk HLFIR/FIR operations and collect candidate implicit allocation sites. The main workflow obtains this IR by running Flang on real `.f90` files. The implementation can also recognize operations by name for optional internal MLIR regression fixtures.
+Walk HLFIR/FIR operations and collect candidate implicit allocation sites. The workflow obtains this IR by running Flang on real `.f90` files.
 
 ### 2. Graph construction
 
@@ -82,6 +82,5 @@ The current implementation focuses on:
 - allocatable assignment reallocation detection
 - function-result temporaries with one direct consumer
 - real Flang-generated HLFIR from five Fortran test cases
-- optional generic MLIR regression examples for pass-level debugging
 
 The project deliberately avoids whole-program alias reasoning in the current milestone.

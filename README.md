@@ -8,7 +8,7 @@ FIAP is a real end-to-end Flang pipeline:
 Fortran .f90 source -> Flang HLFIR/MLIR -> fiap-opt APG analysis -> JSON/CSV reports -> transform/evaluation
 ```
 
-The main demo does **not** depend on handcrafted MLIR. The repository still keeps small MLIR regression fixtures for internal compiler-pass testing, but the submission workflow starts from real Fortran files in `testcases/fortran/`.
+The project workflow starts from real Fortran files in `testcases/fortran/`. There are no handcrafted MLIR fixtures in the submission testcases.
 
 ## What It Detects
 
@@ -42,7 +42,6 @@ Every report includes:
 - `lib/` and `include/` - C++ analysis/pass implementation
 - `testcases/fortran/` - real Fortran inputs for the main end-to-end pipeline
 - `testcases/fortran_optimized/` - baseline comparison programs
-- `test/mlir_regression/` - optional internal MLIR pass fixtures, not the main demo
 - `profiles/` - profile-guided refinement sample data
 
 ## Requirements
@@ -59,7 +58,6 @@ Required:
 Optional:
 
 - `FlangConfig.cmake` for typed FIR/HLFIR C++ integration
-- `ctest` for internal MLIR regression tests
 
 ## Build
 
@@ -169,16 +167,6 @@ into:
 do concurrent (i = lbound(a, 1):ubound(a, 1))
   a(i) = b(i) + c(i)
 end do
-```
-
-## Optional Internal MLIR Regression
-
-The `.mlir` files in `test/mlir_regression/*.mlir` are not the main demo. They are internal regression fixtures for checking the standalone MLIR pass deterministically.
-
-Run them only if asked:
-
-```powershell
-scripts\run.ps1 -IncludeMlirRegression -IncludeCTest
 ```
 
 ## Current Status

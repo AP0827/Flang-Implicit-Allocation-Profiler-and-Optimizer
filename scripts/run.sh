@@ -30,4 +30,4 @@ if ! command -v "$PYTHON" >/dev/null 2>&1; then
   PYTHON="python"
 fi
 
-"$PYTHON" "$ROOT_DIR/scripts/run_backend_demo.py" --tool "$TOOL" --build-dir "$BUILD_DIR" "$@"
+"$PYTHON" "$ROOT_DIR/scripts/run_pipeline.py" --tool "$TOOL" --build-dir "$BUILD_DIR" "$@"

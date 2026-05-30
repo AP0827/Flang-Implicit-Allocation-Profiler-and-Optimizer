@@ -17,7 +17,6 @@ FIAP is designed to expose those allocations at the HLFIR/FIR level, map them ba
 - Start from compiler IR evidence, not source guesses.
 - Work with real Flang-generated HLFIR when Flang is available.
 - Use real Flang-generated HLFIR as the default evaluation path.
-- Keep generic MLIR fixtures only as optional internal regression tests.
 - Produce source-mapped reports suitable for a GitHub/demo submission.
 - Include a conservative failure case where the tool refuses unsafe transformation.
 - Provide measurable evaluation through repeatable scripts and CSV reports.

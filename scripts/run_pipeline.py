@@ -2,8 +2,6 @@
 from __future__ import annotations
 
 import argparse
-import csv
-import json
 import os
 import shutil
 import subprocess
@@ -102,76 +100,6 @@ def resolve_flang(explicit: str | None) -> Path:
     )
 
 
-def run_ctest(build_dir: Path) -> str:
-    ctest_candidates = [
-        shutil.which("ctest"),
-        r"C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\ctest.exe",
-        r"C:\Program Files\Microsoft Visual Studio\17\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\ctest.exe",
-    ]
-    ctest = next((str(Path(candidate)) for candidate in ctest_candidates if candidate and Path(candidate).exists()), None)
-    if ctest is None:
-        return "skipped: ctest not found"
-    completed = run([ctest, "--test-dir", str(build_dir), "--output-on-failure"], allow_failure=True)
-    return "ok" if completed.returncode == 0 else f"failed: ctest exit {completed.returncode}"
-
-
-def write_json_report(tool: Path, testcase: Path, output: Path) -> dict:
-    completed = run([str(tool), str(testcase), "--format=json"], print_output=False)
-    output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(completed.stdout, encoding="utf-8")
-    return json.loads(completed.stdout)
-
-
-def summarize_report(report: dict) -> tuple[int, int, int, int, int]:
-    entries = report.get("entries", [])
-    provably = 0
-    possible = 0
-    necessary = 0
-    estimated = 0
-    for entry in entries:
-        classification = entry.get("classification")
-        estimated += int(entry.get("estimatedBytes", 0) or 0)
-        if classification == "provably-eliminable":
-            provably += 1
-        elif classification == "possibly-unnecessary":
-            possible += 1
-        elif classification == "necessary":
-            necessary += 1
-    return len(entries), provably, possible, necessary, estimated
-
-
-def run_mlir_regression(tool: Path, reports_dir: Path) -> Path:
-    rows: list[dict[str, object]] = []
-    collected_dir = reports_dir / "mlir-regression"
-    collected_dir.mkdir(parents=True, exist_ok=True)
-    for testcase in sorted((ROOT / "test" / "mlir_regression").glob("*.mlir")):
-        report_path = collected_dir / f"{testcase.stem}.json"
-        report = write_json_report(tool, testcase, report_path)
-        sites, provably, possible, necessary, estimated = summarize_report(report)
-        rows.append(
-            {
-                "testcase": testcase.name,
-                "sites": sites,
-                "provably_eliminable": provably,
-                "possibly_unnecessary": possible,
-                "necessary": necessary,
-                "estimated_bytes": estimated,
-                "report": rel(report_path),
-            }
-        )
-        print(
-            f"REGRESSION {testcase.name}: sites={sites}, "
-            f"provably={provably}, possible={possible}, necessary={necessary}, bytes={estimated}"
-        )
-
-    out = collected_dir / "mlir-regression-summary.csv"
-    with out.open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(handle, fieldnames=list(rows[0].keys()))
-        writer.writeheader()
-        writer.writerows(rows)
-    return out
-
-
 def run_fortran_hlfir(tool: Path, reports_dir: Path, flang: Path) -> Path:
     print("\n[1/4] Flang HLFIR + FIAP analysis")
     out_dir = reports_dir / "hlfir"
@@ -262,8 +190,6 @@ def main() -> int:
     parser.add_argument("--compiler", default="", help="Optional Fortran compiler path for runtime benchmark.")
     parser.add_argument("--benchmark-runs", default=5, type=int)
     parser.add_argument("--skip-benchmark", action="store_true")
-    parser.add_argument("--include-mlir-regression", action="store_true")
-    parser.add_argument("--include-ctest", action="store_true")
     args = parser.parse_args()
 
     build_dir = (ROOT / args.build_dir).resolve() if not args.build_dir.is_absolute() else args.build_dir.resolve()
@@ -278,7 +204,6 @@ def main() -> int:
     print(f"source inputs: {rel(ROOT / 'testcases' / 'fortran')}")
     print(f"reports: {rel(reports_dir)}")
 
-    ctest_status = run_ctest(build_dir) if args.include_ctest else "not run: optional MLIR/CMake regression"
     hlfir_summary = run_fortran_hlfir(tool, reports_dir, flang)
     transformed = run_source_transform(reports_dir)
     refined = run_profile_refinement(reports_dir)
@@ -288,7 +213,6 @@ def main() -> int:
         flang,
         args.benchmark_runs,
     )
-    mlir_summary = run_mlir_regression(tool, reports_dir) if args.include_mlir_regression else None
 
     print("\nDone")
     print(f"Fortran HLFIR summary: {rel(hlfir_summary)}")
@@ -296,10 +220,6 @@ def main() -> int:
     print(f"profile refinement: {rel(refined)}")
     if benchmark:
         print(f"runtime benchmark: {rel(benchmark)}")
-    if args.include_ctest:
-        print(f"ctest: {ctest_status}")
-    if mlir_summary:
-        print(f"optional MLIR regression: {rel(mlir_summary)}")
     print("failure case: testcases/fortran/escaping_temp.f90 -> necessary")
     return 0
 

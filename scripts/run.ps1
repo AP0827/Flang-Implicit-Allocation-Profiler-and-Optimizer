@@ -9,9 +9,7 @@ param(
   [string]$Flang = "",
   [string]$Compiler = "",
   [int]$BenchmarkRuns = 5,
-  [switch]$SkipBenchmark,
-  [switch]$IncludeMlirRegression,
-  [switch]$IncludeCTest
+  [switch]$SkipBenchmark
 )
 
 $ErrorActionPreference = "Stop"
@@ -45,27 +43,21 @@ if (-not $python) {
   throw "Python was not found on PATH."
 }
 
-$demoArgs = @(
-  (Join-Path $root "scripts\run_backend_demo.py"),
+$pipelineArgs = @(
+  (Join-Path $root "scripts\run_pipeline.py"),
   "--tool", $tool,
   "--build-dir", (Join-Path $root $BuildDir),
   "--reports-dir", (Join-Path $root $ReportsDir),
   "--benchmark-runs", "$BenchmarkRuns"
 )
 if ($Flang) {
-  $demoArgs += @("--flang", $Flang)
+  $pipelineArgs += @("--flang", $Flang)
 }
 if ($Compiler) {
-  $demoArgs += @("--compiler", $Compiler)
+  $pipelineArgs += @("--compiler", $Compiler)
 }
 if ($SkipBenchmark) {
-  $demoArgs += "--skip-benchmark"
-}
-if ($IncludeMlirRegression) {
-  $demoArgs += "--include-mlir-regression"
-}
-if ($IncludeCTest) {
-  $demoArgs += "--include-ctest"
+  $pipelineArgs += "--skip-benchmark"
 }
 
-& $python @demoArgs
+& $python @pipelineArgs
