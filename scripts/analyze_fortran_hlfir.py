@@ -11,6 +11,24 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
+UBUNTU_FLANG_COMMANDS = (
+    "flang-new",
+    "flang",
+    "flang-new-20",
+    "flang-new-19",
+    "flang-new-18",
+    "flang-20",
+    "flang-19",
+    "flang-18",
+)
+UBUNTU_FLANG_PATHS = (
+    Path("/usr/lib/llvm-20/bin/flang-new"),
+    Path("/usr/lib/llvm-19/bin/flang-new"),
+    Path("/usr/lib/llvm-18/bin/flang-new"),
+    Path("/usr/lib/llvm-20/bin/flang"),
+    Path("/usr/lib/llvm-19/bin/flang"),
+    Path("/usr/lib/llvm-18/bin/flang"),
+)
 
 EXPECTED_PRIMARY_CLASSIFICATION = {
     "vector_add.f90": "provably-eliminable",
@@ -31,7 +49,6 @@ EXPECTED_PRIMARY_CLASSIFICATION = {
 
 def resolve_tool(
     path: str | Path | None,
-    fallback_exe: str | None = None,
     env_names: tuple[str, ...] = (),
     command_names: tuple[str, ...] = (),
     fallback_paths: tuple[Path, ...] = (),
@@ -49,10 +66,6 @@ def resolve_tool(
         candidate = Path(candidate_value)
         if candidate.exists():
             return candidate
-        if fallback_exe:
-            executable_candidate = candidate.with_suffix(fallback_exe)
-            if executable_candidate.exists():
-                return executable_candidate
 
     searched = ", ".join([str(path or ""), *env_names, *command_names]).strip(", ")
     raise SystemExit(f"required tool not found: {searched}")
@@ -123,8 +136,12 @@ def main() -> int:
             "then running fiap-opt on the generated HLFIR."
         )
     )
-    parser.add_argument("--flang", default="", help="Path to flang/flang-new. Falls back to FIAP_FLANG, FLANG, then PATH.")
-    parser.add_argument("--tool", default="build/fiap-opt.exe", type=Path)
+    parser.add_argument(
+        "--flang",
+        default="",
+        help="Path to flang/flang-new. Falls back to FIAP_FLANG, FLANG, then PATH.",
+    )
+    parser.add_argument("--tool", default="build/fiap-opt", type=Path)
     parser.add_argument("--source-dir", default="testcases/fortran", type=Path)
     parser.add_argument("--out-dir", default="reports/hlfir", type=Path)
     parser.add_argument("--summary", default="reports/hlfir/summary.csv", type=Path)
@@ -138,13 +155,10 @@ def main() -> int:
     flang = resolve_tool(
         args.flang,
         env_names=("FIAP_FLANG", "FLANG"),
-        command_names=("flang-new", "flang", "flang-new.exe", "flang.exe"),
-        fallback_paths=(
-            Path(Path.cwd().anchor) / "llvm-project" / "build" / "bin" / "flang.exe",
-            Path(Path.cwd().anchor) / "llvm-project" / "build" / "bin" / "flang-new.exe",
-        ),
+        command_names=UBUNTU_FLANG_COMMANDS,
+        fallback_paths=UBUNTU_FLANG_PATHS,
     )
-    tool = resolve_tool(args.tool, ".exe")
+    tool = resolve_tool(args.tool)
     sources = sorted(path for path in args.source_dir.glob("*.f90"))
     if not sources:
         raise SystemExit(f"no .f90 files found in {args.source_dir}")

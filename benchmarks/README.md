@@ -21,22 +21,21 @@ Optimized counterparts:
 Run:
 
 ```bash
-python scripts/benchmark_fortran.py --out reports/benchmark/runtime.csv
+python3 scripts/benchmark_fortran.py --out reports/benchmark/runtime.csv
 ```
 
-Windows with the local Flang build:
+Ubuntu with an explicit Flang install:
 
-```powershell
-python scripts\benchmark_fortran.py `
-  --compiler D:\llvm-project\build\bin\flang.exe `
-  --out reports\benchmark\runtime.csv `
+```bash
+python3 scripts/benchmark_fortran.py \
+  --compiler /usr/lib/llvm-18/bin/flang-new \
+  --out reports/benchmark/runtime.csv \
   --runs 20
 ```
 
 The benchmark script:
 
 - discovers a compiler if one is not provided
-- uses the Visual Studio developer environment automatically on Windows
 - compiles baseline and optimized programs with the same compiler flags
 - writes `baseline_seconds`, `optimized_seconds`, `speedup_percent`, and `status`
 

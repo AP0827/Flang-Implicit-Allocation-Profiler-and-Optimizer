@@ -5,12 +5,6 @@
 The main executable is:
 
 ```text
-build/fiap-opt.exe
-```
-
-or on Unix-like systems:
-
-```text
 build/fiap-opt
 ```
 
@@ -249,13 +243,10 @@ Safety checks:
 
 Required scripts:
 
-- `scripts/build.sh` - configure and build
-- `scripts/run.sh` - end-to-end Fortran pipeline or single generated-HLFIR report
-
-Windows equivalents:
-
-- `scripts/build.ps1`
-- `scripts/run.ps1`
+- `build.sh` - configure and build
+- `run.sh` - end-to-end Fortran pipeline or single generated-HLFIR report
+- `package_release.sh` - create a source release archive
+- `scripts/build.sh`, `scripts/run.sh`, and `scripts/package_release.sh` - compatibility wrappers for the old script paths
 
 Backend workflow script:
 

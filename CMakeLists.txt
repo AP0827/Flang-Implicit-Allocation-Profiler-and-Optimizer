@@ -48,6 +48,7 @@ endif()
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/include)
 link_directories(${LLVM_BUILD_LIBRARY_DIR})
+link_directories(${LLVM_LIBRARY_DIRS})
 
 set(FIAP_SOURCES
   lib/APG.cpp
@@ -69,19 +70,24 @@ target_include_directories(fiap
 )
 target_compile_definitions(fiap PUBLIC FIAP_HAVE_FLANG=${FIAP_HAVE_FLANG})
 target_compile_features(fiap PUBLIC cxx_std_17)
+target_link_directories(fiap PUBLIC ${LLVM_LIBRARY_DIRS})
 if(MSVC)
   target_compile_options(fiap PUBLIC /Zc:__cplusplus)
 endif()
 
-target_link_libraries(fiap
-  PUBLIC
-    MLIRFuncDialect
-    MLIRIR
-    MLIRPass
-    MLIRParser
-    MLIRSupport
-    LLVMSupport
-)
+if(TARGET MLIR AND TARGET LLVM)
+  target_link_libraries(fiap PUBLIC MLIR LLVM)
+else()
+  target_link_libraries(fiap
+    PUBLIC
+      MLIRFuncDialect
+      MLIRIR
+      MLIRPass
+      MLIRParser
+      MLIRSupport
+      LLVMSupport
+  )
+endif()
 
 if(FIAP_HAVE_FLANG)
   foreach(flang_target IN ITEMS
@@ -99,14 +105,17 @@ if(FIAP_HAVE_FLANG)
 endif()
 
 add_executable(fiap-opt tools/fiap-opt.cpp)
-target_link_libraries(fiap-opt PRIVATE fiap MLIRParser MLIRSupport LLVMSupport)
+target_link_libraries(fiap-opt PRIVATE fiap)
 
 include(CTest)
 if(BUILD_TESTING)
   find_package(Python3 COMPONENTS Interpreter QUIET)
   find_program(FIAP_FLANG_EXECUTABLE
-    NAMES flang-new flang flang-new.exe flang.exe
-    HINTS "D:/llvm-project/build/bin"
+    NAMES flang-new flang flang-new-20 flang-new-19 flang-new-18 flang-20 flang-19 flang-18
+    HINTS
+      /usr/lib/llvm-20/bin
+      /usr/lib/llvm-19/bin
+      /usr/lib/llvm-18/bin
   )
 
   if(Python3_Interpreter_FOUND)

@@ -12,14 +12,30 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-
-
-def is_windows() -> bool:
-    return os.name == "nt"
-
-
-def exe_name(name: str) -> str:
-    return f"{name}.exe" if is_windows() else name
+UBUNTU_FLANG_COMMANDS = (
+    "flang-new",
+    "flang",
+    "flang-new-20",
+    "flang-new-19",
+    "flang-new-18",
+    "flang-20",
+    "flang-19",
+    "flang-18",
+)
+UBUNTU_FLANG_PATHS = (
+    Path("/usr/lib/llvm-20/bin/flang-new"),
+    Path("/usr/lib/llvm-19/bin/flang-new"),
+    Path("/usr/lib/llvm-18/bin/flang-new"),
+    Path("/usr/lib/llvm-20/bin/flang"),
+    Path("/usr/lib/llvm-19/bin/flang"),
+    Path("/usr/lib/llvm-18/bin/flang"),
+)
+UBUNTU_FIR_OPT_COMMANDS = ("fir-opt", "fir-opt-20", "fir-opt-19", "fir-opt-18")
+UBUNTU_FIR_OPT_PATHS = (
+    Path("/usr/lib/llvm-20/bin/fir-opt"),
+    Path("/usr/lib/llvm-19/bin/fir-opt"),
+    Path("/usr/lib/llvm-18/bin/fir-opt"),
+)
 
 
 def rel(path: Path) -> str:
@@ -77,17 +93,15 @@ def resolve_fiap_tool(explicit: str | None, build_dir: Path) -> Path:
         candidates.append(Path(explicit))
     candidates.extend(
         [
-            build_dir / exe_name("fiap-opt"),
-            build_dir / "Release" / exe_name("fiap-opt"),
-            ROOT / "build" / exe_name("fiap-opt"),
-            ROOT / "build" / "Release" / exe_name("fiap-opt"),
+            build_dir / "fiap-opt",
+            ROOT / "build" / "fiap-opt",
         ]
     )
     for candidate in candidates:
         if candidate.exists():
             return candidate.resolve()
     searched = "\n  ".join(rel(candidate) for candidate in candidates)
-    raise SystemExit(f"fiap-opt was not found. Run scripts/build.sh first. Searched:\n  {searched}")
+    raise SystemExit(f"fiap-opt was not found. Run ./build.sh first. Searched:\n  {searched}")
 
 
 def resolve_flang(explicit: str | None) -> Path:
@@ -95,15 +109,8 @@ def resolve_flang(explicit: str | None) -> Path:
     if explicit:
         candidates.append(explicit)
     candidates.extend(os.environ.get(name, "") for name in ("FIAP_FLANG", "FLANG"))
-    candidates.extend(found for name in ("flang-new", "flang", "flang-new.exe", "flang.exe") if (found := shutil.which(name)))
-    candidates.extend(
-        [
-            Path("D:/llvm-project/build/bin/flang.exe"),
-            Path("D:/llvm-project/build/bin/flang-new.exe"),
-            Path("/mnt/d/llvm-project/build/bin/flang"),
-            Path("/mnt/d/llvm-project/build/bin/flang-new"),
-        ]
-    )
+    candidates.extend(found for name in UBUNTU_FLANG_COMMANDS if (found := shutil.which(name)))
+    candidates.extend(UBUNTU_FLANG_PATHS)
     for candidate_value in candidates:
         if not str(candidate_value).strip():
             continue
@@ -112,7 +119,7 @@ def resolve_flang(explicit: str | None) -> Path:
             return candidate.resolve()
     raise SystemExit(
         "Flang was not found. Full end-to-end mode requires Flang. "
-        "Set FIAP_FLANG or pass --flang D:\\llvm-project\\build\\bin\\flang.exe."
+        "Set FIAP_FLANG or pass --flang /usr/lib/llvm-18/bin/flang-new."
     )
 
 
@@ -218,13 +225,8 @@ def find_fir_opt(explicit: str | None) -> Path | None:
     if explicit:
         candidates.append(explicit)
     candidates.extend(os.environ.get(name, "") for name in ("FIAP_FIR_OPT", "FIR_OPT"))
-    candidates.extend(found for name in ("fir-opt", "fir-opt.exe") if (found := shutil.which(name)))
-    candidates.extend(
-        [
-            Path("D:/llvm-project/build/bin/fir-opt.exe"),
-            Path("/mnt/d/llvm-project/build/bin/fir-opt"),
-        ]
-    )
+    candidates.extend(found for name in UBUNTU_FIR_OPT_COMMANDS if (found := shutil.which(name)))
+    candidates.extend(UBUNTU_FIR_OPT_PATHS)
     for candidate_value in candidates:
         if not str(candidate_value).strip():
             continue
@@ -334,7 +336,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(
         description="Run the real Fortran -> Flang HLFIR -> FIAP backend workflow."
     )
-    parser.add_argument("--tool", default="", help="Path to fiap-opt. Defaults to build/fiap-opt(.exe).")
+    parser.add_argument("--tool", default="", help="Path to fiap-opt. Defaults to build/fiap-opt.")
     parser.add_argument("--build-dir", default="build", type=Path)
     parser.add_argument("--reports-dir", default="reports", type=Path)
     parser.add_argument("--flang", default="", help="Path to flang/flang-new. Required for full end-to-end mode.")

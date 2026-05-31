@@ -34,10 +34,12 @@ def discover_compiler(explicit: str | None) -> str | None:
         if found:
             return found
     for fallback in (
-        Path("D:/llvm-project/build/bin/flang.exe"),
-        Path("D:/llvm-project/build/bin/flang-new.exe"),
-        Path("/mnt/d/llvm-project/build/bin/flang"),
-        Path("/mnt/d/llvm-project/build/bin/flang-new"),
+        Path("/usr/lib/llvm-20/bin/flang-new"),
+        Path("/usr/lib/llvm-19/bin/flang-new"),
+        Path("/usr/lib/llvm-18/bin/flang-new"),
+        Path("/usr/lib/llvm-20/bin/flang"),
+        Path("/usr/lib/llvm-19/bin/flang"),
+        Path("/usr/lib/llvm-18/bin/flang"),
     ):
         if fallback.exists():
             return str(fallback)
@@ -48,38 +50,13 @@ def compile_program(compiler: str, source: Path, exe: Path) -> None:
     exe = exe.resolve()
     exe.parent.mkdir(parents=True, exist_ok=True)
     command = [compiler, "-O3", str(source.resolve()), "-o", str(exe)]
-    dev_command = windows_dev_command(command)
-    if dev_command:
-        subprocess.run(
-            dev_command,
-            shell=True,
-            check=True,
-            text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
-    else:
-        subprocess.run(
-            command,
-            check=True,
-            text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
-
-
-def windows_dev_command(command: list[str]) -> str:
-    if os.name != "nt":
-        return ""
-    for candidate in (
-        Path(r"C:\Program Files\Microsoft Visual Studio\18\Community\Common7\Tools\VsDevCmd.bat"),
-        Path(r"C:\Program Files\Microsoft Visual Studio\18\BuildTools\Common7\Tools\VsDevCmd.bat"),
-        Path(r"C:\Program Files\Microsoft Visual Studio\17\Community\Common7\Tools\VsDevCmd.bat"),
-        Path(r"C:\Program Files\Microsoft Visual Studio\17\BuildTools\Common7\Tools\VsDevCmd.bat"),
-    ):
-        if candidate.exists():
-            return f'call "{candidate}" -arch=x64 >NUL && {subprocess.list2cmdline(command)}'
-    return ""
+    subprocess.run(
+        command,
+        check=True,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
 
 
 NUMBER = re.compile(r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[Ee][-+]?\d+)?")
@@ -182,8 +159,8 @@ def main() -> int:
             )
             continue
 
-        baseline_exe = args.build_dir / f"case_{case_index:02d}_baseline.exe"
-        optimized_exe = args.build_dir / f"case_{case_index:02d}_optimized.exe"
+        baseline_exe = args.build_dir / f"case_{case_index:02d}_baseline"
+        optimized_exe = args.build_dir / f"case_{case_index:02d}_optimized"
         try:
             compile_program(compiler, baseline, baseline_exe)
             compile_program(compiler, optimized, optimized_exe)

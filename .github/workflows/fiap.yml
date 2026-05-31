@@ -19,18 +19,14 @@ jobs:
 
   full-flang-pipeline:
     name: Full Flang pipeline
-    runs-on: [self-hosted, windows, flang]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Build FIAP
-        shell: pwsh
-        run: .\scripts\build.ps1
+        run: ./build.sh
       - name: Run real Fortran pipeline
-        shell: pwsh
-        run: .\scripts\run.ps1 -BenchmarkRuns 5
+        run: ./run.sh --benchmark-runs 5
       - name: Check generated evidence
-        shell: pwsh
-        run: python .\scripts\check_pipeline_outputs.py --reports-dir .\reports --require-benchmark
+        run: python3 scripts/check_pipeline_outputs.py --reports-dir reports --require-benchmark
       - name: Run CTest
-        shell: pwsh
-        run: ctest --test-dir .\build --output-on-failure
+        run: ctest --test-dir build --output-on-failure

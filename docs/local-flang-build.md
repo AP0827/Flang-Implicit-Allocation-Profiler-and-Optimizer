@@ -14,73 +14,74 @@ The typed integration path in `fiap` is designed for that setup.
 
 From an `llvm-project` checkout, configure a build like this:
 
-```powershell
-cmake -S llvm -B build `
-  -G Ninja `
-  -DLLVM_ENABLE_PROJECTS="mlir;clang;flang" `
-  -DCMAKE_BUILD_TYPE=Release `
+```bash
+cmake -S llvm -B build \
+  -G Ninja \
+  -DLLVM_ENABLE_PROJECTS="mlir;clang;flang" \
+  -DCMAKE_BUILD_TYPE=Release \
   -DLLVM_TARGETS_TO_BUILD="X86"
 ```
 
 Then build:
 
-```powershell
+```bash
 ninja -C build
 ```
 
 Useful outputs to confirm:
 
-- `build\bin\flang-new.exe`
-- `build\bin\bbc.exe` if your revision provides it
-- `build\lib\cmake\llvm`
-- `build\lib\cmake\mlir`
-- `build\lib\cmake\flang`
+- `build/bin/flang-new`
+- `build/bin/bbc` if your revision provides it
+- `build/lib/cmake/llvm`
+- `build/lib/cmake/mlir`
+- `build/lib/cmake/flang`
 
 ## 2. Configure `fiap` Against That Build
 
-```powershell
-cmake -S D:\Flang-Implicit-Allocation-Profiler-and-Optimizer -B D:\Flang-Implicit-Allocation-Profiler-and-Optimizer\build `
-  -DLLVM_DIR=D:\llvm-project\build\lib\cmake\llvm `
-  -DMLIR_DIR=D:\llvm-project\build\lib\cmake\mlir `
-  -DFlang_DIR=D:\llvm-project\build\lib\cmake\flang
+```bash
+cmake -S /home/asish/Flang-Implicit-Allocation-Profiler-and-Optimizer \
+  -B /home/asish/Flang-Implicit-Allocation-Profiler-and-Optimizer/build \
+  -DLLVM_DIR=~/llvm-project/build/lib/cmake/llvm \
+  -DMLIR_DIR=~/llvm-project/build/lib/cmake/mlir \
+  -DFlang_DIR=~/llvm-project/build/lib/cmake/flang
 ```
 
 Then build:
 
-```powershell
-cmake --build D:\Flang-Implicit-Allocation-Profiler-and-Optimizer\build --config Release
+```bash
+cmake --build /home/asish/Flang-Implicit-Allocation-Profiler-and-Optimizer/build
 ```
 
 ## 3. Emit HLFIR
 
 Use your local Flang binary to lower a Fortran file into HLFIR or FIR:
 
-```powershell
+```bash
 flang-new -fc1 -emit-hlfir your_program.f90 -o your_program.mlir
 ```
 
 If your build exposes `bbc`, a common alternative is:
 
-```powershell
+```bash
 bbc -emit-hlfir your_program.f90 -o your_program.mlir
 ```
 
 ## 4. Run `fiap`
 
-```powershell
-D:\Flang-Implicit-Allocation-Profiler-and-Optimizer\build\fiap-opt.exe your_program.mlir
+```bash
+/home/asish/Flang-Implicit-Allocation-Profiler-and-Optimizer/build/fiap-opt your_program.mlir
 ```
 
 For JSON:
 
-```powershell
-D:\Flang-Implicit-Allocation-Profiler-and-Optimizer\build\fiap-opt.exe your_program.mlir --format=json
+```bash
+/home/asish/Flang-Implicit-Allocation-Profiler-and-Optimizer/build/fiap-opt your_program.mlir --format=json
 ```
 
 For graph output:
 
-```powershell
-D:\Flang-Implicit-Allocation-Profiler-and-Optimizer\build\fiap-opt.exe your_program.mlir --format=dot
+```bash
+/home/asish/Flang-Implicit-Allocation-Profiler-and-Optimizer/build/fiap-opt your_program.mlir --format=dot
 ```
 
 ## 5. Move From Prototype To Compiler Pass

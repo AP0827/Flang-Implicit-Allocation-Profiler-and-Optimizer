@@ -37,8 +37,8 @@ Every report includes:
 - `DESIGN.md` - approach, alternatives, APG, classifier, failure handling
 - `IMPLEMENTATION.md` - LLVM/MLIR/Flang implementation details
 - `EVALUATION.md` - metrics, real Fortran test cases, baseline comparison, results
-- `scripts/build.sh` and `scripts/run.sh` - required scripts
-- `scripts/build.ps1` and `scripts/run.ps1` - Windows equivalents
+- `build.sh`, `run.sh`, and `package_release.sh` - Ubuntu entrypoints
+- `scripts/build.sh` and `scripts/run.sh` - compatibility wrappers for the old script paths
 - `src/` - source-level transformation helper
 - `tools/` - `fiap-opt` driver
 - `lib/` and `include/` - C++ analysis/pass implementation
@@ -66,25 +66,25 @@ Optional:
 
 ## Build
 
-Linux/macOS/WSL:
+On Ubuntu, `./build.sh` automatically installs the required apt packages when they are missing:
 
 ```bash
-./scripts/build.sh
+./build.sh
 ```
 
-Windows PowerShell:
+To skip automatic package installation after setting up dependencies yourself:
 
-```powershell
-scripts\build.ps1
+```bash
+FIAP_INSTALL_DEPS=0 ./build.sh
 ```
 
-Explicit Windows LLVM paths:
+For a custom local LLVM/Flang build:
 
-```powershell
-scripts\build.ps1 `
-  -LLVM_DIR D:\llvm-project\build\lib\cmake\llvm `
-  -MLIR_DIR D:\llvm-project\build\lib\cmake\mlir `
-  -Flang_DIR D:\llvm-project\build\lib\cmake\flang
+```bash
+LLVM_DIR=~/llvm-project/build/lib/cmake/llvm \
+MLIR_DIR=~/llvm-project/build/lib/cmake/mlir \
+Flang_DIR=~/llvm-project/build/lib/cmake/flang \
+./build.sh
 ```
 
 ## Run Full End-To-End Demo
@@ -92,20 +92,14 @@ scripts\build.ps1 `
 This is the main command to show:
 
 ```bash
-./scripts/run.sh
-```
-
-Windows:
-
-```powershell
-scripts\run.ps1
+./run.sh
 ```
 
 The default run performs the real pipeline:
 
 1. Reads the `.f90` files from `testcases/fortran/`.
 2. Uses Flang to emit HLFIR/MLIR into `reports/hlfir/*.mlir`.
-3. Runs `build/fiap-opt.exe` over that generated HLFIR.
+3. Runs `build/fiap-opt` over that generated HLFIR.
 4. Writes FIAP JSON reports into `reports/hlfir/*.json`.
 5. Writes `reports/hlfir/summary.csv` with strict expected-classification checks.
 6. Applies safe HLFIR/FIR rewrites into `reports/hlfir/*.transformed.mlir`.
@@ -137,22 +131,22 @@ The failure cases include `escaping_temp.f90`, `assumed_shape_kernel.f90`, `poin
 
 ## Run One Generated HLFIR Report
 
-After `scripts\run.ps1`, inspect a generated HLFIR report directly:
+After `./run.sh`, inspect a generated HLFIR report directly:
 
-```powershell
-build\fiap-opt.exe reports\hlfir\vector_add.mlir --format=text
-build\fiap-opt.exe reports\hlfir\escaping_temp.mlir --format=text
-build\fiap-opt.exe reports\hlfir\vector_add.mlir --format=sarif
+```bash
+build/fiap-opt reports/hlfir/vector_add.mlir --format=text
+build/fiap-opt reports/hlfir/escaping_temp.mlir --format=text
+build/fiap-opt reports/hlfir/vector_add.mlir --format=sarif
 ```
 
 The second command is the failure case. The SARIF command emits IDE/code-scanning friendly diagnostics for the same allocation sites.
 
 ## HLFIR/FIR Rewrite Demo
 
-After `scripts\run.ps1`, inspect the actual rewritten compiler IR:
+After `./run.sh`, inspect the actual rewritten compiler IR:
 
-```powershell
-build\fiap-opt.exe reports\hlfir\vector_add.mlir --apply-transforms --print-annotated-ir
+```bash
+build/fiap-opt reports/hlfir/vector_add.mlir --apply-transforms --print-annotated-ir
 ```
 
 The generated evidence files are:
@@ -168,21 +162,21 @@ The transform pass replaces safe `hlfir.elemental` array-expression assignments 
 
 To verify generated evidence after a full run:
 
-```powershell
-python scripts\check_pipeline_outputs.py --reports-dir reports --require-benchmark
+```bash
+python3 scripts/check_pipeline_outputs.py --reports-dir reports --require-benchmark
 ```
 
 ## Real Fortran To HLFIR Command
 
 You can also run only the Fortran-to-HLFIR analysis:
 
-```powershell
-python scripts\analyze_fortran_hlfir.py `
-  --flang D:\llvm-project\build\bin\flang.exe `
-  --tool build\fiap-opt.exe `
-  --source-dir testcases\fortran `
-  --out-dir reports\hlfir `
-  --summary reports\hlfir\summary.csv `
+```bash
+python3 scripts/analyze_fortran_hlfir.py \
+  --flang /usr/lib/llvm-18/bin/flang-new \
+  --tool build/fiap-opt \
+  --source-dir testcases/fortran \
+  --out-dir reports/hlfir \
+  --summary reports/hlfir/summary.csv \
   --strict
 ```
 
@@ -190,11 +184,11 @@ python scripts\analyze_fortran_hlfir.py `
 
 The transform consumes the generated real-HLFIR report, not a mock report:
 
-```powershell
-python src\fiap_source_transformer.py `
-  --report reports\hlfir\vector_add.json `
-  --source testcases\fortran\vector_add.f90 `
-  --output reports\source\vector_add.transformed.f90
+```bash
+python3 src/fiap_source_transformer.py \
+  --report reports/hlfir/vector_add.json \
+  --source testcases/fortran/vector_add.f90 \
+  --output reports/source/vector_add.transformed.f90
 ```
 
 It rewrites:
@@ -217,8 +211,8 @@ The transformer also handles higher-rank expressions up to Fortran's rank-15 lim
 
 FIAP can emit profile-site CSV rows directly from generated HLFIR:
 
-```powershell
-build\fiap-opt.exe reports\hlfir\function_result.mlir --emit-profile-sites
+```bash
+build/fiap-opt reports/hlfir/function_result.mlir --emit-profile-sites
 ```
 
 The full pipeline turns generated report entries into `reports/profile/generated_profile.csv`, then uses that file for profile-guided refinement.
@@ -244,7 +238,7 @@ Implemented:
 - thirteen real Fortran test cases including four larger real-kernel-style workloads, descriptor/section negative cases, a rank-3 positive case, and a pointer-alias negative case
 - baseline-vs-optimized Fortran benchmark harness with output-equivalence checks
 - SARIF reports for every generated HLFIR input
-- CTest evidence gate, lit-style generated-evidence regression checks, and GitHub Actions/self-hosted full-pipeline workflow
+- CTest evidence gate, lit-style generated-evidence regression checks, and GitHub Actions Ubuntu full-pipeline workflow
 - formal local correctness argument for the implemented rewrites
 - release packaging scripts for GitHub distribution
 

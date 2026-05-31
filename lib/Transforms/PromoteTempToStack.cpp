@@ -71,12 +71,11 @@ bool promoteAllocMem(mlir::OpBuilder &builder, fir::AllocMemOp alloc) {
     uniqName = name->str() + ".stack";
   }
 
-  auto alloca = fir::AllocaOp::create(builder, alloc.getLoc(), alloc.getInType(),
-                                      uniqName, alloc.getTypeparams(),
-                                      alloc.getShape());
-  auto converted =
-      fir::ConvertOp::create(builder, alloc.getLoc(), alloc.getRes().getType(),
-                             alloca.getRes());
+  auto alloca = builder.create<fir::AllocaOp>(
+      alloc.getLoc(), alloc.getInType(), uniqName, alloc.getTypeparams(),
+      alloc.getShape());
+  auto converted = builder.create<fir::ConvertOp>(
+      alloc.getLoc(), alloc.getResult().getType(), alloca.getResult());
 
   mlir::MLIRContext *context = alloc.getContext();
   alloca->setAttr("fiap.rewrite_status",
@@ -88,13 +87,13 @@ bool promoteAllocMem(mlir::OpBuilder &builder, fir::AllocMemOp alloc) {
                                            "ref-to-heap-type-compatible-view"));
 
   llvm::SmallVector<fir::FreeMemOp> frees;
-  for (mlir::Operation *user : alloc.getRes().getUsers()) {
+  for (mlir::Operation *user : alloc.getResult().getUsers()) {
     if (auto free = mlir::dyn_cast<fir::FreeMemOp>(user)) {
       frees.push_back(free);
     }
   }
 
-  alloc.getRes().replaceAllUsesWith(converted.getRes());
+  alloc.getResult().replaceAllUsesWith(converted.getResult());
   for (fir::FreeMemOp free : frees) {
     free.erase();
   }

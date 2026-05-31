@@ -13,13 +13,7 @@ Handwritten MLIR fixtures are optional regression tests only. The required proje
 ## Main Command
 
 ```bash
-./scripts/run.sh
-```
-
-Windows:
-
-```powershell
-scripts\run.ps1
+./run.sh
 ```
 
 This regenerates:
@@ -55,13 +49,13 @@ This regenerates:
 
 Strict Fortran-HLFIR evaluation command:
 
-```powershell
-python scripts\analyze_fortran_hlfir.py `
-  --flang D:\llvm-project\build\bin\flang.exe `
-  --tool build\fiap-opt.exe `
-  --source-dir testcases\fortran `
-  --out-dir reports\hlfir `
-  --summary reports\hlfir\summary.csv `
+```bash
+python3 scripts/analyze_fortran_hlfir.py \
+  --flang /usr/lib/llvm-18/bin/flang-new \
+  --tool build/fiap-opt \
+  --source-dir testcases/fortran \
+  --out-dir reports/hlfir \
+  --summary reports/hlfir/summary.csv \
   --strict
 ```
 
@@ -98,14 +92,14 @@ Only `provably-eliminable` bytes are counted as removable.
 
 ## Current Fortran-HLFIR Results
 
-Latest local run with `scripts\run.ps1 -BenchmarkRuns 5`:
+Latest local run with `./run.sh --benchmark-runs 5`:
 
 | Source | Sites | Provably eliminable | Possibly unnecessary | Necessary | Expected met | Estimated bytes | Reduction |
 | --- | ---: | ---: | ---: | ---: | --- | ---: | ---: |
 | `allocatable_update.f90` | 3 | 0 | 2 | 1 | true | 0 | 0.0% |
 | `assumed_shape_kernel.f90` | 1 | 0 | 0 | 1 | true | 0 | 0.0% |
 | `escaping_temp.f90` | 2 | 0 | 0 | 2 | true | 4096 | 0.0% |
-| `function_result.f90` | 2 | 0 | 1 | 1 | true | 4096 | 0.0% |
+| `function_result.f90` | 3 | 0 | 1 | 2 | true | 6144 | 0.0% |
 | `laplace2d_real_kernel.f90` | 5 | 5 | 0 | 0 | true | 184320 | 100.0% |
 | `matrix_stencil.f90` | 2 | 2 | 0 | 0 | true | 131072 | 100.0% |
 | `option_pricing_real_kernel.f90` | 3 | 3 | 0 | 0 | true | 24576 | 100.0% |
@@ -127,21 +121,21 @@ It writes `reports/benchmark/runtime.csv`.
 
 Current local sample with Flang and five timing runs:
 
-| Program | Speedup | Outputs match | Status |
-| --- | ---: | --- | --- |
-| `allocatable_update.f90` | measured in `reports/benchmark/runtime.csv` | true | ok |
-| `assumed_shape_kernel.f90` | measured | true | descriptor negative case |
-| `escaping_temp.f90` | measured | true | expected near 0% because it is the failure case |
-| `function_result.f90` | measured | true | result-buffer rewrite comparison |
-| `laplace2d_real_kernel.f90` | measured | true | real-kernel-style 2D workload |
-| `matrix_stencil.f90` | measured | true | 2D array expression workload |
-| `option_pricing_real_kernel.f90` | measured | true | real-kernel-style vector workload |
-| `pointer_alias.f90` | measured | true | alias-sensitive failure case |
-| `polybench_jacobi1d.f90` | measured | true | PolyBench-style repeated-update workload |
-| `rank3_tensor_update.f90` | measured | true | rank-3 backend scalarization case |
-| `saxpy_real_kernel.f90` | measured | true | real-kernel-style vector workload |
-| `strided_section_update.f90` | measured | true | strided-section failure case |
-| `vector_add.f90` | measured | true | simple baseline workload |
+| Program | Baseline median | Optimized median | Speedup | Outputs match | Status |
+| --- | ---: | ---: | ---: | --- | --- |
+| `allocatable_update.f90` | 0.008385s | 0.006529s | 22.14% | true | ok |
+| `assumed_shape_kernel.f90` | 0.001171s | 0.000944s | 19.42% | true | ok |
+| `escaping_temp.f90` | 0.009684s | 0.008905s | 8.05% | true | ok |
+| `function_result.f90` | 0.014660s | 0.007090s | 51.64% | true | ok |
+| `laplace2d_real_kernel.f90` | 0.063096s | 0.052919s | 16.13% | true | ok |
+| `matrix_stencil.f90` | 0.037160s | 0.034275s | 7.76% | true | ok |
+| `option_pricing_real_kernel.f90` | 0.020601s | 0.016631s | 19.27% | true | ok |
+| `pointer_alias.f90` | 0.000804s | 0.000760s | 5.44% | true | ok |
+| `polybench_jacobi1d.f90` | 0.001084s | 0.001543s | -42.34% | true | ok |
+| `rank3_tensor_update.f90` | 0.001042s | 0.000944s | 9.39% | true | ok |
+| `saxpy_real_kernel.f90` | 0.019044s | 0.018698s | 1.81% | true | ok: small/noisy runtime delta |
+| `strided_section_update.f90` | 0.001037s | 0.000848s | 18.24% | true | ok |
+| `vector_add.f90` | 0.011799s | 0.012575s | -6.58% | true | ok |
 
 The benchmark uses median timing plus best timing columns and verifies that optimized output matches baseline output within a numeric tolerance. Runtime remains machine/compiler dependent because Flang may already optimize simple array syntax aggressively, so the deterministic metric is static allocation reduction, backend HLFIR rewrite evidence, source-level rewrite evidence, and correctness validation.
 
@@ -149,8 +143,8 @@ The benchmark uses median timing plus best timing columns and verifies that opti
 
 The safe backend transform consumes real generated HLFIR:
 
-```powershell
-build\fiap-opt.exe reports\hlfir\vector_add.mlir --apply-transforms --print-annotated-ir
+```bash
+build/fiap-opt reports/hlfir/vector_add.mlir --apply-transforms --print-annotated-ir
 ```
 
 The generated files:
@@ -168,8 +162,8 @@ show `hlfir.elemental` assignments replaced by explicit `fir.do_loop` nests. The
 
 The regression evidence gate is:
 
-```powershell
-python scripts\check_pipeline_outputs.py --reports-dir reports --require-benchmark
+```bash
+python3 scripts/check_pipeline_outputs.py --reports-dir reports --require-benchmark
 ```
 
 It verifies required Fortran inputs, expected classifications, eliminated backend elementals, validation status, profile refinement, and benchmark output equivalence.
@@ -178,11 +172,11 @@ It verifies required Fortran inputs, expected classifications, eliminated backen
 
 The safe auto-transform consumes real generated reports:
 
-```powershell
-python src\fiap_source_transformer.py `
-  --report reports\hlfir\vector_add.json `
-  --source testcases\fortran\vector_add.f90 `
-  --output reports\source\vector_add.transformed.f90
+```bash
+python3 src/fiap_source_transformer.py \
+  --report reports/hlfir/vector_add.json \
+  --source testcases/fortran/vector_add.f90 \
+  --output reports/source/vector_add.transformed.f90
 ```
 
 It rewrites `a = b + c` into a `do concurrent` loop.
@@ -201,27 +195,27 @@ Notable source rewrites include:
 
 The refinement also consumes a real generated HLFIR report:
 
-```powershell
-python scripts\refine_profile.py `
-  --report reports\hlfir\function_result.json `
-  --profile reports\profile\generated_profile.csv `
-  --out reports\refinement\function_result.refined.json
+```bash
+python3 scripts/refine_profile.py \
+  --report reports/hlfir/function_result.json \
+  --profile reports/profile/generated_profile.csv \
+  --out reports/refinement/function_result.refined.json
 ```
 
 This upgrades the function-result site when profile data proves stable runtime shape.
 
 Profile sites can also be shown directly:
 
-```powershell
-build\fiap-opt.exe reports\hlfir\function_result.mlir --emit-profile-sites
+```bash
+build/fiap-opt reports/hlfir/function_result.mlir --emit-profile-sites
 ```
 
 ## Failure Case
 
 Show:
 
-```powershell
-build\fiap-opt.exe reports\hlfir\escaping_temp.mlir --format=text
+```bash
+build/fiap-opt reports/hlfir/escaping_temp.mlir --format=text
 ```
 
 Expected:

@@ -6,19 +6,19 @@ Use this order. Do not lead with the MLIR fixtures.
 
 Open:
 
-- `testcases\fortran\vector_add.f90`
-- `testcases\fortran\matrix_stencil.f90`
-- `testcases\fortran\function_result.f90`
-- `testcases\fortran\allocatable_update.f90`
-- `testcases\fortran\escaping_temp.f90`
-- `testcases\fortran\pointer_alias.f90`
-- `testcases\fortran\assumed_shape_kernel.f90`
-- `testcases\fortran\strided_section_update.f90`
-- `testcases\fortran\saxpy_real_kernel.f90`
-- `testcases\fortran\laplace2d_real_kernel.f90`
-- `testcases\fortran\option_pricing_real_kernel.f90`
-- `testcases\fortran\rank3_tensor_update.f90`
-- `testcases\fortran\polybench_jacobi1d.f90`
+- `testcases/fortran/vector_add.f90`
+- `testcases/fortran/matrix_stencil.f90`
+- `testcases/fortran/function_result.f90`
+- `testcases/fortran/allocatable_update.f90`
+- `testcases/fortran/escaping_temp.f90`
+- `testcases/fortran/pointer_alias.f90`
+- `testcases/fortran/assumed_shape_kernel.f90`
+- `testcases/fortran/strided_section_update.f90`
+- `testcases/fortran/saxpy_real_kernel.f90`
+- `testcases/fortran/laplace2d_real_kernel.f90`
+- `testcases/fortran/option_pricing_real_kernel.f90`
+- `testcases/fortran/rank3_tensor_update.f90`
+- `testcases/fortran/polybench_jacobi1d.f90`
 
 Say:
 
@@ -28,8 +28,8 @@ Say:
 
 Run:
 
-```powershell
-scripts\run.ps1
+```bash
+./run.sh
 ```
 
 Say:
@@ -40,9 +40,9 @@ Say:
 
 Open:
 
-- `reports\hlfir\vector_add.mlir`
-- `reports\hlfir\escaping_temp.mlir`
-- `reports\hlfir\polybench_jacobi1d.mlir`
+- `reports/hlfir/vector_add.mlir`
+- `reports/hlfir/escaping_temp.mlir`
+- `reports/hlfir/polybench_jacobi1d.mlir`
 
 Say:
 
@@ -52,11 +52,11 @@ Say:
 
 Open:
 
-- `reports\hlfir\vector_add.json`
-- `reports\hlfir\escaping_temp.json`
-- `reports\hlfir\pointer_alias.json`
-- `reports\hlfir\strided_section_update.json`
-- `reports\hlfir\summary.csv`
+- `reports/hlfir/vector_add.json`
+- `reports/hlfir/escaping_temp.json`
+- `reports/hlfir/pointer_alias.json`
+- `reports/hlfir/strided_section_update.json`
+- `reports/hlfir/summary.csv`
 
 Say:
 
@@ -66,9 +66,9 @@ Say:
 
 Run:
 
-```powershell
-build\fiap-opt.exe reports\hlfir\vector_add.mlir --apply-transforms --print-annotated-ir
-type reports\source\vector_add.transformed.f90
+```bash
+build/fiap-opt reports/hlfir/vector_add.mlir --apply-transforms --print-annotated-ir
+sed -n '1,80p' reports/source/vector_add.transformed.f90
 ```
 
 Say:
@@ -79,8 +79,8 @@ Say:
 
 Run:
 
-```powershell
-build\fiap-opt.exe reports\hlfir\escaping_temp.mlir --format=text
+```bash
+build/fiap-opt reports/hlfir/escaping_temp.mlir --format=text
 ```
 
 Say:
@@ -91,9 +91,9 @@ Say:
 
 Open:
 
-- `reports\hlfir\function_result.json`
-- `reports\refinement\function_result.refined.json`
-- `reports\profile\generated_profile.csv`
+- `reports/hlfir/function_result.json`
+- `reports/refinement/function_result.refined.json`
+- `reports/profile/generated_profile.csv`
 
 Say:
 
@@ -103,7 +103,7 @@ Say:
 
 Open:
 
-- `reports\benchmark\runtime.csv`
+- `reports/benchmark/runtime.csv`
 - `EVALUATION.md`
 
 Say:

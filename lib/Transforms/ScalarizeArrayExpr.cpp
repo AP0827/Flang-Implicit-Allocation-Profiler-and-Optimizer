@@ -148,38 +148,68 @@ bool applyScalarization(fir::FirOpBuilder &builder,
   mlir::OpBuilder::InsertionGuard guard(builder);
   builder.setInsertionPoint(assign);
 
-  hlfir::LoopNest loopNest =
-      hlfir::genLoopNest(loc, builder, elemental.getShape(),
-                         /*isUnordered=*/!elemental.isOrdered(),
-                         /*emitWorkshareLoop=*/false);
-  if (loopNest.outerOp) {
+  hlfir::LoopNest loopNest = hlfir::genLoopNest(
+      loc, builder, elemental.getShape(), /*isUnordered=*/!elemental.isOrdered());
+  fir::DoLoopOp markerLoop =
+      loopNest.outerLoop ? loopNest.outerLoop : loopNest.innerLoop;
+  if (markerLoop) {
     mlir::MLIRContext *context = elemental.getContext();
-    loopNest.outerOp->setAttr(
+    markerLoop->setAttr(
         "fiap.rewrite_status",
         mlir::StringAttr::get(context, "applied-scalarization"));
-    loopNest.outerOp->setAttr("fiap.rewrite_template",
-                              mlir::StringAttr::get(
-                                  context, "explicit fir.do_loop nest"));
-    loopNest.outerOp->setAttr("fiap.source_op",
-                              mlir::StringAttr::get(context,
-                                                    "hlfir.elemental"));
+    markerLoop->setAttr(
+        "fiap.rewrite_template",
+        mlir::StringAttr::get(context, "explicit fir.do_loop nest"));
+    markerLoop->setAttr("fiap.source_op",
+                        mlir::StringAttr::get(context, "hlfir.elemental"));
   }
 
-  builder.setInsertionPointToStart(loopNest.body);
-  mlir::IRMapping mapper;
-  mlir::Value rhsElement = hlfir::inlineElementalOp(
-      loc, builder, mlir::cast<hlfir::ElementalOpInterface>(*elemental),
-      loopNest.oneBasedIndices, mapper,
-      [](hlfir::ElementalOp nestedElemental) {
-        return isScalarizationCandidate(nestedElemental.getOperation());
-      });
+  fir::DoLoopOp bodyLoop =
+      loopNest.innerLoop ? loopNest.innerLoop : loopNest.outerLoop;
+  builder.setInsertionPointToStart(bodyLoop.getBody());
+  hlfir::YieldElementOp yield = hlfir::inlineElementalOp(
+      loc, builder, elemental, loopNest.oneBasedIndices);
+  mlir::Value rhsElement = yield.getElementValue();
+  yield.erase();
+
+  bool inlinedNestedApply = true;
+  while (inlinedNestedApply) {
+    inlinedNestedApply = false;
+    llvm::SmallVector<hlfir::ApplyOp> applyOps;
+    bodyLoop.walk([&](hlfir::ApplyOp apply) { applyOps.push_back(apply); });
+    for (hlfir::ApplyOp apply : applyOps) {
+      if (!apply->getBlock()) {
+        continue;
+      }
+      auto nested = apply.getExpr().getDefiningOp<hlfir::ElementalOp>();
+      if (!nested || !isScalarizationCandidate(nested.getOperation())) {
+        continue;
+      }
+
+      mlir::OpBuilder::InsertionGuard nestedGuard(builder);
+      builder.setInsertionPoint(apply);
+      hlfir::YieldElementOp nestedYield =
+          hlfir::inlineElementalOp(apply.getLoc(), builder, nested,
+                                   apply.getIndices());
+      mlir::Value replacement = nestedYield.getElementValue();
+      nestedYield.erase();
+      if (rhsElement == apply.getElementValue()) {
+        rhsElement = replacement;
+      }
+      apply.getElementValue().replaceAllUsesWith(replacement);
+      apply.erase();
+      inlinedNestedApply = true;
+    }
+  }
+
+  builder.setInsertionPoint(bodyLoop.getBody()->getTerminator());
   hlfir::Entity lhs(assign.getLhs());
   hlfir::Entity lhsElement =
       hlfir::getElementAt(loc, builder, lhs, loopNest.oneBasedIndices);
-  hlfir::AssignOp::create(builder, loc, rhsElement, lhsElement,
-                          /*realloc=*/false,
-                          /*keep_lhs_length_if_realloc=*/false,
-                          /*temporary_lhs=*/false);
+  builder.create<hlfir::AssignOp>(loc, rhsElement, lhsElement,
+                                  /*realloc=*/false,
+                                  /*keep_lhs_length_if_realloc=*/false,
+                                  /*temporary_lhs=*/false);
 
   elemental.emitRemark("fiap replaced this hlfir.elemental assignment with an explicit loop nest");
   assign.erase();
