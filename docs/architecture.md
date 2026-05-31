@@ -72,15 +72,17 @@ Apply one of two conservative rewrites:
 - stack promotion of bounded temporaries
 - scalarization of simple element-wise array expressions
 
-In the current codebase these rewrites are represented as transformation-preparation passes. They attach lowering hints and explicit rewrite templates so the project remains robust across Flang versions while still showing the optimization path.
+In the current codebase these rewrites are real typed transform passes when Flang support is available. The scalarization pass replaces safe `hlfir.elemental` assignments with explicit `fir.do_loop` nests, and the stack-promotion pass rewrites only guarded bounded temporaries.
 
-## Current Prototype Coverage
+## Current Coverage
 
-The current implementation focuses on:
+The current implementation covers the required assignment classes and the submission evidence uses real Flang-generated HLFIR:
 
-- single-statement array expression temporaries
+- single-statement and nested elemental array-expression temporaries
 - allocatable assignment reallocation detection
 - function-result temporaries with one direct consumer
-- real Flang-generated HLFIR from five Fortran test cases
+- pointer-alias, assumed-shape descriptor, strided-section, and escaping-temporary negative cases
+- rank-3 and larger real-kernel-style positive cases
+- thirteen real Fortran inputs lowered through Flang before FIAP analysis
 
-The project deliberately avoids whole-program alias reasoning in the current milestone.
+FIAP uses conservative local alias and shape evidence. Risky descriptor, pointer-like, target-like, class-like, escaping, and strided-section cases are reported but not rewritten unless the classifier proves a local rewrite is legal.

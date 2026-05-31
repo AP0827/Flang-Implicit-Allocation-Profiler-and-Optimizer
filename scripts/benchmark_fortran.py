@@ -7,6 +7,8 @@ import os
 import shutil
 import subprocess
 import time
+import re
+from statistics import median
 from pathlib import Path
 
 
@@ -80,12 +82,21 @@ def windows_dev_command(command: list[str]) -> str:
     return ""
 
 
-def time_program(exe: Path, runs: int) -> float:
+NUMBER = re.compile(r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[Ee][-+]?\d+)?")
+
+
+def numeric_output(stdout: str) -> float | None:
+    match = NUMBER.search(stdout)
+    return float(match.group(0)) if match else None
+
+
+def time_program(exe: Path, runs: int) -> tuple[float, float, str]:
     exe = exe.resolve()
     timings: list[float] = []
+    last_stdout = ""
     for _ in range(runs):
         start = time.perf_counter()
-        subprocess.run(
+        completed = subprocess.run(
             [str(exe)],
             check=True,
             text=True,
@@ -94,7 +105,8 @@ def time_program(exe: Path, runs: int) -> float:
             cwd=str(exe.parent),
         )
         timings.append(time.perf_counter() - start)
-    return min(timings)
+        last_stdout = completed.stdout.strip()
+    return median(timings), min(timings), last_stdout
 
 
 def main() -> int:
@@ -117,7 +129,12 @@ def main() -> int:
         "compiler",
         "baseline_seconds",
         "optimized_seconds",
+        "baseline_best_seconds",
+        "optimized_best_seconds",
         "speedup_percent",
+        "outputs_match",
+        "output_delta",
+        "runs",
         "status",
     ]
 
@@ -131,7 +148,12 @@ def main() -> int:
                     "compiler": "",
                     "baseline_seconds": "",
                     "optimized_seconds": "",
+                    "baseline_best_seconds": "",
+                    "optimized_best_seconds": "",
                     "speedup_percent": "",
+                    "outputs_match": "",
+                    "output_delta": "",
+                    "runs": args.runs,
                     "status": "skipped: install flang-new, flang, gfortran, or ifx",
                 }
             )
@@ -149,7 +171,12 @@ def main() -> int:
                     "compiler": compiler,
                     "baseline_seconds": "",
                     "optimized_seconds": "",
+                    "baseline_best_seconds": "",
+                    "optimized_best_seconds": "",
                     "speedup_percent": "",
+                    "outputs_match": "",
+                    "output_delta": "",
+                    "runs": args.runs,
                     "status": "skipped: optimized source missing",
                 }
             )
@@ -160,8 +187,8 @@ def main() -> int:
         try:
             compile_program(compiler, baseline, baseline_exe)
             compile_program(compiler, optimized, optimized_exe)
-            baseline_time = time_program(baseline_exe, args.runs)
-            optimized_time = time_program(optimized_exe, args.runs)
+            baseline_time, baseline_best, baseline_stdout = time_program(baseline_exe, args.runs)
+            optimized_time, optimized_best, optimized_stdout = time_program(optimized_exe, args.runs)
         except subprocess.CalledProcessError as error:
             rows.append(
                 {
@@ -169,7 +196,12 @@ def main() -> int:
                     "compiler": compiler,
                     "baseline_seconds": "",
                     "optimized_seconds": "",
+                    "baseline_best_seconds": "",
+                    "optimized_best_seconds": "",
                     "speedup_percent": "",
+                    "outputs_match": "",
+                    "output_delta": "",
+                    "runs": args.runs,
                     "status": f"failed: {error.stderr.strip() or error}",
                 }
             )
@@ -181,21 +213,46 @@ def main() -> int:
                     "compiler": compiler,
                     "baseline_seconds": "",
                     "optimized_seconds": "",
+                    "baseline_best_seconds": "",
+                    "optimized_best_seconds": "",
                     "speedup_percent": "",
+                    "outputs_match": "",
+                    "output_delta": "",
+                    "runs": args.runs,
                     "status": f"failed: {error}",
                 }
             )
             continue
 
         speedup = 0.0 if baseline_time == 0 else (baseline_time - optimized_time) / baseline_time
+        baseline_value = numeric_output(baseline_stdout)
+        optimized_value = numeric_output(optimized_stdout)
+        if baseline_value is None or optimized_value is None:
+            outputs_match = baseline_stdout == optimized_stdout
+            output_delta = ""
+        else:
+            output_delta_value = abs(baseline_value - optimized_value)
+            tolerance = max(1.0e-3, abs(baseline_value) * 1.0e-4)
+            outputs_match = output_delta_value <= tolerance
+            output_delta = f"{output_delta_value:.6g}"
+        status = "ok"
+        if abs(speedup) < 0.05:
+            status = "ok: small/noisy runtime delta"
+        if not outputs_match:
+            status = "failed: optimized output differs"
         rows.append(
             {
                 "program": baseline.name,
                 "compiler": compiler,
                 "baseline_seconds": f"{baseline_time:.6f}",
                 "optimized_seconds": f"{optimized_time:.6f}",
+                "baseline_best_seconds": f"{baseline_best:.6f}",
+                "optimized_best_seconds": f"{optimized_best:.6f}",
                 "speedup_percent": f"{speedup * 100.0:.2f}",
-                "status": "ok",
+                "outputs_match": str(outputs_match).lower(),
+                "output_delta": output_delta,
+                "runs": args.runs,
+                "status": status,
             }
         )
 

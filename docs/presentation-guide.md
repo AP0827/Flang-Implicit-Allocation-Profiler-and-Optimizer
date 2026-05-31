@@ -11,10 +11,18 @@ Open:
 - `testcases\fortran\function_result.f90`
 - `testcases\fortran\allocatable_update.f90`
 - `testcases\fortran\escaping_temp.f90`
+- `testcases\fortran\pointer_alias.f90`
+- `testcases\fortran\assumed_shape_kernel.f90`
+- `testcases\fortran\strided_section_update.f90`
+- `testcases\fortran\saxpy_real_kernel.f90`
+- `testcases\fortran\laplace2d_real_kernel.f90`
+- `testcases\fortran\option_pricing_real_kernel.f90`
+- `testcases\fortran\rank3_tensor_update.f90`
+- `testcases\fortran\polybench_jacobi1d.f90`
 
 Say:
 
-> These are the five required test cases, and they are real Fortran source files. The pipeline starts from these `.f90` files.
+> These are the real Fortran inputs. They cover array temporaries, function results, realloc-on-assignment, escaping temporaries, pointer aliasing, assumed-shape descriptors, strided sections, rank-3 arrays, and larger numerical kernels. The pipeline starts from these `.f90` files.
 
 ## 2. Run The Real Pipeline
 
@@ -34,6 +42,7 @@ Open:
 
 - `reports\hlfir\vector_add.mlir`
 - `reports\hlfir\escaping_temp.mlir`
+- `reports\hlfir\polybench_jacobi1d.mlir`
 
 Say:
 
@@ -45,24 +54,26 @@ Open:
 
 - `reports\hlfir\vector_add.json`
 - `reports\hlfir\escaping_temp.json`
+- `reports\hlfir\pointer_alias.json`
+- `reports\hlfir\strided_section_update.json`
 - `reports\hlfir\summary.csv`
 
 Say:
 
-> FIAP analyzes the generated HLFIR and maps allocation sites back to Fortran source lines.
+> FIAP analyzes generated HLFIR, maps allocation sites back to Fortran source lines and expressions, and records legality, alias evidence, shape evidence, rank, byte estimates, and transformation advice.
 
 ## 5. Show The Safe Optimization
 
 Run:
 
 ```powershell
-build\fiap-opt.exe reports\hlfir\vector_add.mlir --format=text
+build\fiap-opt.exe reports\hlfir\vector_add.mlir --apply-transforms --print-annotated-ir
 type reports\source\vector_add.transformed.f90
 ```
 
 Say:
 
-> `vector_add.f90` has a provably eliminable array temporary. FIAP rewrites `a = b + c` into a `do concurrent` loop.
+> `vector_add.f90` has a provably eliminable array temporary. FIAP rewrites the generated HLFIR into `fir.do_loop` and also emits a source-level `do concurrent` version.
 
 ## 6. Show The Failure Case
 
@@ -82,10 +93,11 @@ Open:
 
 - `reports\hlfir\function_result.json`
 - `reports\refinement\function_result.refined.json`
+- `reports\profile\generated_profile.csv`
 
 Say:
 
-> Static analysis marks the array-valued function result as possibly unnecessary. Profile evidence can upgrade the site when shape is stable.
+> Static analysis marks the array-valued function result as possibly unnecessary. The generated profile-site CSV records source expression, rank, shape, byte, and allocation-counter metadata, then profile evidence upgrades stable cases.
 
 ## 8. Show Baseline Comparison
 

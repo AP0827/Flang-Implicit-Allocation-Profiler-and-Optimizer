@@ -1,0 +1,36 @@
+name: FIAP verification
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  python-smoke:
+    name: Python/script smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Compile Python helpers
+        run: python -m compileall scripts src
+
+  full-flang-pipeline:
+    name: Full Flang pipeline
+    runs-on: [self-hosted, windows, flang]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build FIAP
+        shell: pwsh
+        run: .\scripts\build.ps1
+      - name: Run real Fortran pipeline
+        shell: pwsh
+        run: .\scripts\run.ps1 -BenchmarkRuns 5
+      - name: Check generated evidence
+        shell: pwsh
+        run: python .\scripts\check_pipeline_outputs.py --reports-dir .\reports --require-benchmark
+      - name: Run CTest
+        shell: pwsh
+        run: ctest --test-dir .\build --output-on-failure

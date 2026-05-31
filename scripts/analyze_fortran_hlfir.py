@@ -18,6 +18,14 @@ EXPECTED_PRIMARY_CLASSIFICATION = {
     "function_result.f90": "possibly-unnecessary",
     "allocatable_update.f90": "possibly-unnecessary",
     "escaping_temp.f90": "necessary",
+    "saxpy_real_kernel.f90": "provably-eliminable",
+    "laplace2d_real_kernel.f90": "provably-eliminable",
+    "option_pricing_real_kernel.f90": "provably-eliminable",
+    "rank3_tensor_update.f90": "provably-eliminable",
+    "pointer_alias.f90": "necessary",
+    "assumed_shape_kernel.f90": "necessary",
+    "strided_section_update.f90": "necessary",
+    "polybench_jacobi1d.f90": "provably-eliminable",
 }
 
 
@@ -67,7 +75,7 @@ def display_path(path: Path) -> str:
         return str(path)
 
 
-def summarize_report(source: Path, hlfir: Path, report_path: Path, report: dict) -> dict[str, object]:
+def summarize_report(source: Path, hlfir: Path, report_path: Path, sarif_path: Path, report: dict) -> dict[str, object]:
     entries = report.get("entries", [])
     counts = {
         "provably-eliminable": 0,
@@ -94,6 +102,7 @@ def summarize_report(source: Path, hlfir: Path, report_path: Path, report: dict)
         "source": display_path(source),
         "generated_hlfir": display_path(hlfir),
         "report": display_path(report_path),
+        "sarif": display_path(sarif_path),
         "sites": len(entries),
         "provably_eliminable": counts.get("provably-eliminable", 0),
         "possibly_unnecessary": counts.get("possibly-unnecessary", 0),
@@ -147,6 +156,7 @@ def main() -> int:
     for source in sources:
         hlfir_path = args.out_dir / f"{source.stem}.mlir"
         report_path = args.out_dir / f"{source.stem}.json"
+        sarif_path = args.out_dir / f"{source.stem}.sarif"
 
         run(
             [
@@ -163,7 +173,10 @@ def main() -> int:
         completed = run([str(tool), str(hlfir_path), "--format=json"])
         report_path.write_text(completed.stdout, encoding="utf-8")
         report = json.loads(completed.stdout)
-        rows.append(summarize_report(source, hlfir_path, report_path, report))
+        sarif_completed = run([str(tool), str(hlfir_path), "--format=sarif"])
+        json.loads(sarif_completed.stdout)
+        sarif_path.write_text(sarif_completed.stdout, encoding="utf-8")
+        rows.append(summarize_report(source, hlfir_path, report_path, sarif_path, report))
         expected_text = ""
         if rows[-1]["expected_primary_classification"]:
             expected_text = (

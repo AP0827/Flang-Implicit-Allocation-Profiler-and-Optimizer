@@ -27,6 +27,8 @@ void registerProjectDialects(mlir::DialectRegistry &registry);
 OperationSemantics classifyOperationSemantics(mlir::Operation &op,
                                               const AnalysisOptions &options);
 ShapeInfo inferShapeInfo(mlir::Operation &op);
+bool hasConservativeAliasRisk(mlir::Operation &op);
+std::string describeAliasEvidence(mlir::Operation &op);
 std::string summarizeOperation(mlir::Operation &op,
                                const OperationSemantics &semantics);
 

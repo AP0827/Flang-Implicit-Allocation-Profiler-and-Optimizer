@@ -100,7 +100,14 @@ struct APGNode {
   bool compilerGenerated = true;
   bool escapes = false;
   bool hasRuntimeDependentShape = false;
+  bool assignmentCompatibleShape = false;
   bool transformable = false;
+  bool aliasRisk = false;
+  bool typedFlangMatch = false;
+  std::string shapeEvidence;
+  std::string aliasEvidence;
+  std::string legality;
+  std::string legalityReason;
 };
 
 struct APGEdge {

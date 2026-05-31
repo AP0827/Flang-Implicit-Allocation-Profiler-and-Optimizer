@@ -12,5 +12,6 @@ std::unique_ptr<mlir::Pass>
 createImplicitAllocationProfilerPass(ProfilerPassOptions options = {});
 std::unique_ptr<mlir::Pass> createPromoteTempToStackPass();
 std::unique_ptr<mlir::Pass> createScalarizeArrayExprPass();
+void registerFIAPPasses();
 
 } // namespace fiap

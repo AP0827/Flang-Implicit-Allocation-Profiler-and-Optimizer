@@ -177,7 +177,49 @@ bool genericReturnsArrayLike(mlir::Operation &op) {
   return false;
 }
 
-ShapeInfo inferShapeFromTypesGeneric(mlir::Operation &op) {
+bool typeSpellingHasAliasRisk(mlir::Type type) {
+  const std::string printed = printType(type);
+  return printed.find("!fir.ptr<") != std::string::npos ||
+         printed.find("!fir.box<") != std::string::npos ||
+         printed.find("!fir.class<") != std::string::npos ||
+         printed.find("!fir.ref<!fir.box<") != std::string::npos;
+}
+
+bool attrSpellingHasAliasRisk(mlir::Operation &op) {
+  for (mlir::NamedAttribute attr : op.getAttrs()) {
+    const std::string name = attr.getName().str();
+    const std::string value = printAttribute(attr.getValue());
+    if (name.find("pointer") != std::string::npos ||
+        name.find("target") != std::string::npos ||
+        value.find("pointer") != std::string::npos ||
+        value.find("target") != std::string::npos ||
+        value.find("intent_inout") != std::string::npos ||
+        value.find("intent_out") != std::string::npos) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool operationHasDirectAliasRisk(mlir::Operation &op) {
+  if (attrSpellingHasAliasRisk(op)) {
+    return true;
+  }
+  for (mlir::Type type : op.getResultTypes()) {
+    if (typeSpellingHasAliasRisk(type)) {
+      return true;
+    }
+  }
+  for (mlir::Value operand : op.getOperands()) {
+    if (typeSpellingHasAliasRisk(operand.getType())) {
+      return true;
+    }
+  }
+  return false;
+}
+
+ShapeInfo inferShapeFromTypesGeneric(mlir::Operation &op,
+                                     bool preferDestinationOperand = false) {
   ShapeInfo shape;
 
   auto inspectType = [&](mlir::Type type) -> bool {
@@ -209,14 +251,33 @@ ShapeInfo inferShapeFromTypesGeneric(mlir::Operation &op) {
     return true;
   };
 
-  for (mlir::Type type : op.getResultTypes()) {
-    if (inspectType(type)) {
-      return shape;
+  if (!preferDestinationOperand) {
+    for (mlir::Type type : op.getResultTypes()) {
+      if (inspectType(type)) {
+        return shape;
+      }
     }
   }
-  for (mlir::Value operand : op.getOperands()) {
-    if (inspectType(operand.getType())) {
-      return shape;
+
+  if (preferDestinationOperand) {
+    for (mlir::Value operand : llvm::reverse(op.getOperands())) {
+      if (inspectType(operand.getType())) {
+        return shape;
+      }
+    }
+  } else {
+    for (mlir::Value operand : op.getOperands()) {
+      if (inspectType(operand.getType())) {
+        return shape;
+      }
+    }
+  }
+
+  if (preferDestinationOperand) {
+    for (mlir::Type type : op.getResultTypes()) {
+      if (inspectType(type)) {
+        return shape;
+      }
     }
   }
   return shape;
@@ -430,22 +491,88 @@ fiap::classifyOperationSemantics(mlir::Operation &op,
   return classifyGeneric(op, options);
 }
 
-ShapeInfo fiap::inferShapeInfo(mlir::Operation &op) {
-#if FIAP_HAVE_FLANG
+bool fiap::hasConservativeAliasRisk(mlir::Operation &op) {
+  if (operationHasDirectAliasRisk(op)) {
+    return true;
+  }
+  bool nestedRisk = false;
+  op.walk([&](mlir::Operation *nested) {
+    if (nested == &op || nestedRisk) {
+      return;
+    }
+    nestedRisk = operationHasDirectAliasRisk(*nested);
+  });
+  return nestedRisk;
+}
+
+std::string fiap::describeAliasEvidence(mlir::Operation &op) {
+  if (attrSpellingHasAliasRisk(op)) {
+    return "operation attributes mention pointer/target/intent-out alias-sensitive Fortran semantics";
+  }
   for (mlir::Type type : op.getResultTypes()) {
-    ShapeInfo shape;
-    if (fillShapeFromTypedType(type, shape)) {
-      return shape;
+    if (typeSpellingHasAliasRisk(type)) {
+      return "result type is descriptor/pointer/class-like and may alias external storage";
     }
   }
   for (mlir::Value operand : op.getOperands()) {
-    ShapeInfo shape;
-    if (fillShapeFromTypedType(operand.getType(), shape)) {
-      return shape;
+    if (typeSpellingHasAliasRisk(operand.getType())) {
+      return "operand type is descriptor/pointer/class-like and may alias external storage";
+    }
+  }
+  std::string nestedEvidence;
+  op.walk([&](mlir::Operation *nested) {
+    if (nested == &op || !nestedEvidence.empty()) {
+      return;
+    }
+    if (operationHasDirectAliasRisk(*nested)) {
+      nestedEvidence =
+          "nested operation uses descriptor/pointer/class-like storage and may alias external storage";
+    }
+  });
+  if (!nestedEvidence.empty()) {
+    return nestedEvidence;
+  }
+  return "";
+}
+
+ShapeInfo fiap::inferShapeInfo(mlir::Operation &op) {
+  const bool preferDestinationOperand =
+      op.getName().getStringRef().contains("hlfir.assign") ||
+      op.getName().getStringRef().contains("fir.store");
+#if FIAP_HAVE_FLANG
+  if (!preferDestinationOperand) {
+    for (mlir::Type type : op.getResultTypes()) {
+      ShapeInfo shape;
+      if (fillShapeFromTypedType(type, shape)) {
+        return shape;
+      }
+    }
+  }
+  if (preferDestinationOperand) {
+    for (mlir::Value operand : llvm::reverse(op.getOperands())) {
+      ShapeInfo shape;
+      if (fillShapeFromTypedType(operand.getType(), shape)) {
+        return shape;
+      }
+    }
+  } else {
+    for (mlir::Value operand : op.getOperands()) {
+      ShapeInfo shape;
+      if (fillShapeFromTypedType(operand.getType(), shape)) {
+        return shape;
+      }
+    }
+  }
+  if (preferDestinationOperand) {
+    for (mlir::Type type : op.getResultTypes()) {
+      ShapeInfo shape;
+      if (fillShapeFromTypedType(type, shape)) {
+        return shape;
+      }
     }
   }
 #endif
-  return inferShapeFromTypesGeneric(op);
+  return inferShapeFromTypesGeneric(op, preferDestinationOperand);
 }
 
 std::string fiap::summarizeOperation(mlir::Operation &op,

@@ -43,6 +43,7 @@ Each node records:
 - construct kind
 - estimated bytes
 - static or runtime-dependent shape
+- assignment-compatible shape evidence when a dynamic temporary is bounded by the destination assignment
 - loop depth
 - producer count
 - consumer count
@@ -58,6 +59,8 @@ Edges describe why one operation matters to another:
 - `lifetime-ends` - a destroy/free operation ends the temporary lifetime
 
 This graph lets the report explain not only that an allocation exists, but why it exists and why a transformation is or is not safe.
+
+Each allocation-bearing node also carries a legality decision. The current legality states are intentionally explicit: `legal-for-rewrite`, `needs-runtime-guard`, `needs-profile-evidence`, `needs-interprocedural-rewrite`, `illegal-for-local-rewrite`, and `unproven`. Pointer-like, descriptor-like, class-like, target, and nested alias-sensitive operations add conservative alias evidence that blocks local rewriting.
 
 ## Classification Lattice
 
@@ -79,9 +82,9 @@ The analysis is intentionally conservative. It is better to report an uncertain 
 
 ## Transformation Strategy
 
-The backend has two transformation levels.
+The backend has three transformation levels.
 
-First, the C++ pass annotates IR with `fiap.*` metadata and transform hints:
+First, the profiler pass annotates IR with `fiap.*` metadata and transform hints:
 
 - `scalarize-to-loop-nest`
 - `promote-to-stack`
@@ -89,19 +92,21 @@ First, the C++ pass annotates IR with `fiap.*` metadata and transform hints:
 - `add-shape-guard`
 - `none`
 
-Second, `src/fiap_source_transformer.py` implements the required source-level transformation for the simplest safe case. It rewrites a provably eliminable rank-1 assignment into a `do concurrent` loop.
+Second, typed C++ transform passes apply safe FIR/HLFIR rewrites when Flang support is available. The implemented in-place IR rewrite scalarizes provably eliminable, alias-clean, `legal-for-rewrite` `hlfir.elemental` assignments into explicit `fir.do_loop` nests and recursively inlines nested elemental computations, including higher-rank cases. A guarded stack-promotion rewrite converts bounded temporary `fir.allocmem` sites into `fir.alloca` and refuses true heap-required or dynamic allocatable storage.
 
-The project does not overclaim full general-purpose Fortran rewriting. Complex FIR/HLFIR mutation is documented as future work, while the implemented simple transformation is concrete and demonstrable.
+Third, `src/fiap_source_transformer.py` implements concrete source-level transformations for safe cases. It rewrites provably eliminable rank-1 through rank-15 array assignments into explicit loop nests, rewrites allocatable assignments into explicit allocation/shape guards, and converts simple array-valued function results into subroutines with explicit result buffers.
+
+The transform contract is intentionally explicit: only sites marked `legal-for-rewrite` by the classifier are rewritten. Unsafe pointer, descriptor, class, target, escaping, and strided-section cases remain in report-only mode with the blocking evidence recorded in JSON/SARIF. `fiap-opt --apply-transforms --print-annotated-ir` prints the post-transform IR so the generated `reports/hlfir/*.transformed.mlir` files show exactly which HLFIR/FIR operations were rewritten.
 
 ## Profile-Guided Refinement
 
 Some sites are ambiguous because shape equality is runtime-dependent. FIAP includes a profile-guided refinement step:
 
 1. Static FIAP report marks a site as `possibly-unnecessary`.
-2. A profile CSV records observed allocation count, bytes, and shape stability.
+2. FIAP emits profile-site data from reports into `reports/profile/generated_profile.csv`.
 3. `scripts/refine_profile.py` upgrades stable ambiguous sites to `provably-eliminable` under profile evidence.
 
-This demonstrates the planned profile-guided allocation elimination loop without requiring a heavy runtime instrumentation framework.
+This implements the profile-guided refinement loop at report level. The generated profile-site data includes site IDs, source expression, rank, shape extents, element width, observed shape stability, observed bytes, allocation count, and instrumentation kind so ambiguous sites are refined from structured evidence rather than ad hoc manual notes.
 
 ## Alternatives Considered
 
@@ -116,6 +121,8 @@ Useful for validation, but it does not explain which HLFIR operation caused the 
 ### Fully Flang-Only Plugin
 
 Ideal for production, but fragile for classroom machines because exact Flang headers and libraries may not be available. FIAP supports typed Flang integration when available and generic MLIR operation matching otherwise.
+
+The repository includes `upstream/flang-fiap-integration.patch` as an integration kit. It is intentionally kept outside the default scripts because it targets an external LLVM checkout, but it documents the concrete pass-registration and pipeline-insertion points.
 
 ## Failure Handling
 

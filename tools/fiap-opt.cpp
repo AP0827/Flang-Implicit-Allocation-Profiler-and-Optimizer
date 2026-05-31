@@ -24,6 +24,12 @@ fiap::ReportFormat parseReportFormat(const std::string &value) {
   if (value == "dot") {
     return fiap::ReportFormat::Dot;
   }
+  if (value == "profile-sites") {
+    return fiap::ReportFormat::ProfileSites;
+  }
+  if (value == "sarif") {
+    return fiap::ReportFormat::Sarif;
+  }
   return fiap::ReportFormat::Text;
 }
 
@@ -31,13 +37,14 @@ fiap::ReportFormat parseReportFormat(const std::string &value) {
 
 int main(int argc, char **argv) {
   llvm::InitLLVM y(argc, argv);
+  fiap::registerFIAPPasses();
 
   llvm::cl::opt<std::string> inputFilename(
       llvm::cl::Positional, llvm::cl::desc("<input MLIR file>"),
       llvm::cl::Required);
   llvm::cl::opt<std::string> format(
       "format", llvm::cl::desc("report output format"),
-      llvm::cl::value_desc("text|json|dot"), llvm::cl::init("text"));
+      llvm::cl::value_desc("text|json|dot|profile-sites|sarif"), llvm::cl::init("text"));
   llvm::cl::opt<bool> noSummary("no-summary",
                                 llvm::cl::desc("suppress summary header"));
   llvm::cl::opt<bool> printAnnotatedIR(
@@ -46,6 +53,12 @@ int main(int argc, char **argv) {
   llvm::cl::opt<bool> prepareTransforms(
       "prepare-transforms",
       llvm::cl::desc("run prototype transformation-preparation passes after profiling"));
+  llvm::cl::opt<bool> applyTransforms(
+      "apply-transforms",
+      llvm::cl::desc("run safe prototype transform passes after profiling"));
+  llvm::cl::opt<bool> emitProfileSites(
+      "emit-profile-sites",
+      llvm::cl::desc("emit profile-site CSV rows instead of the selected report format"));
   llvm::cl::opt<bool> includeNonAllocationNodes(
       "include-non-allocation-nodes",
       llvm::cl::desc("include provenance-only nodes in the final report"));
@@ -73,15 +86,16 @@ int main(int argc, char **argv) {
   }
 
   fiap::ProfilerPassOptions options;
-  options.reportFormat = parseReportFormat(format);
+  options.reportFormat =
+      emitProfileSites ? fiap::ReportFormat::ProfileSites : parseReportFormat(format);
   options.emitSummary = !noSummary;
   options.annotateIR = true;
-  options.printAnnotatedIR = printAnnotatedIR;
+  options.printAnnotatedIR = false;
   options.includeNonAllocationNodes = includeNonAllocationNodes;
 
   mlir::PassManager pm(&context);
   pm.addPass(fiap::createImplicitAllocationProfilerPass(options));
-  if (prepareTransforms) {
+  if (prepareTransforms || applyTransforms) {
     pm.addPass(fiap::createPromoteTempToStackPass());
     pm.addPass(fiap::createScalarizeArrayExprPass());
   }
@@ -89,6 +103,11 @@ int main(int argc, char **argv) {
   if (mlir::failed(pm.run(*module))) {
     llvm::errs() << "pass pipeline failed\n";
     return 1;
+  }
+
+  if (printAnnotatedIR) {
+    module->print(llvm::outs());
+    llvm::outs() << "\n";
   }
 
   return 0;

@@ -31,6 +31,7 @@ list(APPEND CMAKE_MODULE_PATH "${LLVM_CMAKE_DIR}" "${MLIR_CMAKE_DIR}")
 include(TableGen)
 include(AddLLVM)
 include(AddMLIR)
+include(CMakePackageConfigHelpers)
 
 configure_file(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/fiap/Config.h.in
@@ -60,7 +61,12 @@ set(FIAP_SOURCES
 )
 
 add_library(fiap STATIC ${FIAP_SOURCES})
-target_include_directories(fiap PUBLIC include ${CMAKE_CURRENT_BINARY_DIR}/include)
+target_include_directories(fiap
+  PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+)
 target_compile_definitions(fiap PUBLIC FIAP_HAVE_FLANG=${FIAP_HAVE_FLANG})
 target_compile_features(fiap PUBLIC cxx_std_17)
 if(MSVC)
@@ -95,4 +101,91 @@ endif()
 add_executable(fiap-opt tools/fiap-opt.cpp)
 target_link_libraries(fiap-opt PRIVATE fiap MLIRParser MLIRSupport LLVMSupport)
 
-install(TARGETS fiap fiap-opt)
+include(CTest)
+if(BUILD_TESTING)
+  find_package(Python3 COMPONENTS Interpreter QUIET)
+  find_program(FIAP_FLANG_EXECUTABLE
+    NAMES flang-new flang flang-new.exe flang.exe
+    HINTS "D:/llvm-project/build/bin"
+  )
+
+  if(Python3_Interpreter_FOUND)
+    add_test(
+      NAME fiap_python_helpers_compile
+      COMMAND
+        ${Python3_EXECUTABLE}
+        -m compileall
+        ${CMAKE_CURRENT_SOURCE_DIR}/scripts
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+    )
+    set_tests_properties(fiap_python_helpers_compile PROPERTIES TIMEOUT 30)
+  endif()
+
+  if(Python3_Interpreter_FOUND AND FIAP_FLANG_EXECUTABLE)
+    add_test(
+      NAME fiap_real_fortran_pipeline
+      COMMAND
+        ${Python3_EXECUTABLE}
+        ${CMAKE_CURRENT_SOURCE_DIR}/scripts/run_pipeline.py
+        --tool $<TARGET_FILE:fiap-opt>
+        --build-dir ${CMAKE_BINARY_DIR}
+        --reports-dir ${CMAKE_BINARY_DIR}/ctest-reports
+        --flang ${FIAP_FLANG_EXECUTABLE}
+        --skip-benchmark
+    )
+    set_tests_properties(fiap_real_fortran_pipeline PROPERTIES TIMEOUT 120)
+
+    add_test(
+      NAME fiap_pipeline_evidence_checks
+      COMMAND
+        ${Python3_EXECUTABLE}
+        ${CMAKE_CURRENT_SOURCE_DIR}/scripts/check_pipeline_outputs.py
+        --reports-dir ${CMAKE_BINARY_DIR}/ctest-reports
+    )
+    set_tests_properties(fiap_pipeline_evidence_checks PROPERTIES
+      DEPENDS fiap_real_fortran_pipeline
+      TIMEOUT 30
+    )
+
+    add_test(
+      NAME fiap_lit_style_regression_checks
+      COMMAND
+        ${Python3_EXECUTABLE}
+        ${CMAKE_CURRENT_SOURCE_DIR}/scripts/run_lit_style_checks.py
+        --reports-dir ${CMAKE_BINARY_DIR}/ctest-reports
+    )
+    set_tests_properties(fiap_lit_style_regression_checks PROPERTIES
+      DEPENDS fiap_real_fortran_pipeline
+      TIMEOUT 30
+    )
+  endif()
+endif()
+
+install(TARGETS fiap fiap-opt
+  EXPORT FIAPTargets
+  RUNTIME DESTINATION bin
+  ARCHIVE DESTINATION lib
+  LIBRARY DESTINATION lib
+)
+install(DIRECTORY include/fiap DESTINATION include)
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/include/fiap/Config.h DESTINATION include/fiap)
+
+write_basic_package_version_file(
+  ${CMAKE_CURRENT_BINARY_DIR}/FIAPConfigVersion.cmake
+  VERSION 1.0.0
+  COMPATIBILITY SameMajorVersion
+)
+configure_package_config_file(
+  ${CMAKE_CURRENT_SOURCE_DIR}/cmake/FIAPConfig.cmake.in
+  ${CMAKE_CURRENT_BINARY_DIR}/FIAPConfig.cmake
+  INSTALL_DESTINATION lib/cmake/FIAP
+)
+install(EXPORT FIAPTargets
+  NAMESPACE FIAP::
+  DESTINATION lib/cmake/FIAP
+)
+install(FILES
+  ${CMAKE_CURRENT_BINARY_DIR}/FIAPConfig.cmake
+  ${CMAKE_CURRENT_BINARY_DIR}/FIAPConfigVersion.cmake
+  DESTINATION lib/cmake/FIAP
+)

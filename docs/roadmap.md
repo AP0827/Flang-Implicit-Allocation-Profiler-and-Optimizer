@@ -1,20 +1,22 @@
-# Roadmap
+# Status And Extensions
 
-## Near-Term Engineering
+## Implemented In This Repository
 
-- replace string-based FIR/HLFIR matching with dialect-aware operation matchers
-- materialize exact `fir.alloca` rewrites where bounded shape proofs hold
-- scalarize rank-1 `hlfir.assign` expressions with direct FIR loop generation
-- emit stable JSON schemas for benchmark ingestion
+- dialect-aware HLFIR/FIR matching when built with Flang support
+- guarded `fir.allocmem` to `fir.alloca` stack promotion for bounded compiler temporaries
+- direct `fir.do_loop` scalarization for safe `hlfir.elemental` assignments, including nested and higher-rank cases
+- stable text, JSON, SARIF, DOT, and profile-site CSV reporting
+- real `.f90 -> Flang HLFIR -> FIAP` pipeline
+- thirteen real Fortran test cases with positive, negative, descriptor, section, pointer-alias, rank-3, and larger-kernel coverage
+- CTest evidence gates and release packaging scripts
 
-## Research Extensions
+## Research Extensions Beyond The Submission
 
 - interprocedural shape invariant propagation
-- profile-guided promotion from `possibly-unnecessary` to `provably-eliminable`
 - live-range aware scratch-buffer reuse
 - region-based temporary coalescing across adjacent array expressions
 
-## Evaluation Extensions
+## Optional Evaluation Extensions
 
 - SPEC CPU Fortran workloads
 - LAPACK kernels

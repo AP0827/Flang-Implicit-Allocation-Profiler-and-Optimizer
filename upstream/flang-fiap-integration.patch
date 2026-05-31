@@ -1,0 +1,37 @@
+diff --git a/flang/tools/tco/tco.cpp b/flang/tools/tco/tco.cpp
+index 000000000000..111111111111 100644
+--- a/flang/tools/tco/tco.cpp
++++ b/flang/tools/tco/tco.cpp
+@@
++#include "fiap/Passes.h"
+@@
+ int main(int argc, char **argv) {
+   llvm::InitLLVM y(argc, argv);
++  fiap::registerFIAPPasses();
+   // Existing tco/flang driver setup continues here.
+ }
+
+diff --git a/flang/lib/Optimizer/Transforms/CMakeLists.txt b/flang/lib/Optimizer/Transforms/CMakeLists.txt
+index 000000000000..111111111111 100644
+--- a/flang/lib/Optimizer/Transforms/CMakeLists.txt
++++ b/flang/lib/Optimizer/Transforms/CMakeLists.txt
+@@
++# Sketch: when FIAP is vendored or added as an LLVM external project, link the
++# FIAP pass library beside the Flang optimizer transform libraries.
++target_link_libraries(FlangOptimizerTransforms
++  PRIVATE
++    FIAP::fiap
++)
+
+diff --git a/flang/lib/Frontend/CompilerInvocation.cpp b/flang/lib/Frontend/CompilerInvocation.cpp
+index 000000000000..111111111111 100644
+--- a/flang/lib/Frontend/CompilerInvocation.cpp
++++ b/flang/lib/Frontend/CompilerInvocation.cpp
+@@
++// Sketch: add a frontend option such as -fiap-profile-implicit-allocations that
++// appends the registered FIAP pipeline after HLFIR generation and before
++// lowering erases array-expression structure.
++//
++//   pm.addPass(fiap::createImplicitAllocationProfilerPass(options));
++//   pm.addPass(fiap::createPromoteTempToStackPass());
++//   pm.addPass(fiap::createScalarizeArrayExprPass());

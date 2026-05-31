@@ -26,19 +26,26 @@ def read_json_file(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8", errors="replace"))
 
 
-def key_for(entry: dict) -> tuple[str, int, int]:
+def key_for(entry: dict) -> tuple[object, ...]:
+    site_id = entry.get("siteId")
+    if site_id not in {None, ""}:
+        return ("site", Path(entry.get("file", "")).name, int(site_id))
     return (
+        "source",
         Path(entry.get("file", "")).name,
         int(entry.get("line", 0) or 0),
         int(entry.get("column", 0) or 0),
     )
 
 
-def load_profile(path: Path) -> dict[tuple[str, int, int], dict[str, str]]:
-    rows: dict[tuple[str, int, int], dict[str, str]] = {}
+def load_profile(path: Path) -> dict[tuple[object, ...], dict[str, str]]:
+    rows: dict[tuple[object, ...], dict[str, str]] = {}
     with path.open(newline="", encoding="utf-8-sig") as handle:
         for row in csv.DictReader(handle):
+            if row.get("site_id", "").strip():
+                rows[("site", Path(row["file"]).name, int(row["site_id"]))] = row
             key = (
+                "source",
                 Path(row["file"]).name,
                 int(row.get("line", 0) or 0),
                 int(row.get("column", 0) or 0),

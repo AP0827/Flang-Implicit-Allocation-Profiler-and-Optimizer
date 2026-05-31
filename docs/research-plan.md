@@ -10,8 +10,8 @@ HLFIR makes compiler-inserted Fortran array temporaries visible for the first ti
 2. A three-point lattice for eliminability classification.
 3. A source-mapped reporting pass for hidden allocations.
 4. A structured JSON and DOT reporting format for experimental analysis.
-5. A prototype transformation-preparation engine for stack promotion and scalarization.
-6. A path toward profile-guided refinement for ambiguous allocation sites.
+5. Typed HLFIR/FIR transformation passes for guarded stack promotion and scalarization.
+6. Profile-guided refinement for ambiguous allocation sites using structured profile-site evidence.
 
 ## Evaluation Plan
 
@@ -25,13 +25,10 @@ HLFIR makes compiler-inserted Fortran array temporaries visible for the first ti
 
 ### Candidate workloads
 
-- SPEC CPU Fortran benchmarks if available
-- LAPACK or selected numerical kernels
-- synthetic kernels covering:
-  - `A = B + C`
-  - chained array expressions
-  - allocatable resize assignment
-  - array-valued function results
+- the thirteen real Fortran inputs in `testcases/fortran/`
+- selected numerical kernels for SAXPY, Laplace 2D, option pricing, rank-3 tensor update, and PolyBench-style Jacobi 1D
+- negative cases for escaping temporaries, pointer aliases, assumed-shape descriptors, and strided sections
+- external benchmark suites such as SPEC CPU or LAPACK when available locally
 
 ### Experimental comparisons
 
@@ -39,15 +36,15 @@ HLFIR makes compiler-inserted Fortran array temporaries visible for the first ti
 - reporting-only analysis
 - stack-promotion enabled
 - scalarization enabled
-- later: profile-guided reclassification enabled
+- profile-guided reclassification enabled
 
-## Milestones
+## Completed Milestones
 
 1. Detect and report hidden allocation sites.
 2. Attach source ranges and estimated byte counts.
 3. Classify each site using conservative rules.
-4. Implement one profitable automatic rewrite.
-5. Evaluate on at least three application programs.
+4. Implement guarded automatic rewrites at source and HLFIR/FIR level.
+5. Evaluate on thirteen real Fortran programs with baseline comparison and failure cases.
 
 ## Practical Publishable Angle
 

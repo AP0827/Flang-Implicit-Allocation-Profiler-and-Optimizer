@@ -7,6 +7,7 @@
 #include "mlir/IR/Value.h"
 #include "llvm/ADT/StringRef.h"
 
+#include <sstream>
 #include <unordered_set>
 #include <vector>
 
@@ -108,6 +109,56 @@ void propagateConstructs(AllocationProvenanceGraph &graph) {
   }
 }
 
+void propagateAssignmentShapeEvidence(AllocationProvenanceGraph &graph) {
+  for (APGNode &node : graph.nodes()) {
+    if (!isAllocationBearingNode(node) || !node.hasRuntimeDependentShape) {
+      continue;
+    }
+
+    for (const APGNode &candidate : graph.nodes()) {
+      if (candidate.kind != APGNodeKind::Assign || !candidate.estimate.byteCount) {
+        continue;
+      }
+      if (candidate.source.file != node.source.file ||
+          candidate.source.line != node.source.line) {
+        continue;
+      }
+
+      node.shape = candidate.shape;
+      node.estimate = candidate.estimate;
+      node.assignmentCompatibleShape = true;
+      node.hasRuntimeDependentShape = false;
+      node.shapeEvidence =
+          "shape is assignment-compatible with the destination on the same source line";
+      break;
+    }
+  }
+}
+
+std::string describeShapeEvidence(const APGNode &node) {
+  if (node.shape.extents.empty()) {
+    return "";
+  }
+
+  std::ostringstream os;
+  os << (node.shape.hasDynamicExtent ? "runtime-dependent shape" : "static shape")
+     << ": rank=" << node.shape.extents.size() << ", extents=";
+  for (std::size_t i = 0; i < node.shape.extents.size(); ++i) {
+    if (i != 0) {
+      os << "x";
+    }
+    if (node.shape.extents[i] < 0) {
+      os << "?";
+    } else {
+      os << node.shape.extents[i];
+    }
+  }
+  if (node.shape.elementByteWidth != 0) {
+    os << ", element-bytes=" << node.shape.elementByteWidth;
+  }
+  return os.str();
+}
+
 void deriveNodeFacts(AllocationProvenanceGraph &graph) {
   for (APGNode &node : graph.nodes()) {
     std::unordered_set<std::size_t> uniqueIncoming;
@@ -128,7 +179,9 @@ void deriveNodeFacts(AllocationProvenanceGraph &graph) {
 
     node.producerCount = static_cast<unsigned>(uniqueIncoming.size());
     node.consumerCount = static_cast<unsigned>(uniqueOutgoing.size());
-    node.hasRuntimeDependentShape = node.shape.hasDynamicExtent || !node.estimate.byteCount.has_value();
+    node.hasRuntimeDependentShape =
+        !node.assignmentCompatibleShape &&
+        (node.shape.hasDynamicExtent || !node.estimate.byteCount.has_value());
 
     bool escapes = false;
     EscapeKind escapeKind = EscapeKind::NoEscape;
@@ -151,6 +204,10 @@ void deriveNodeFacts(AllocationProvenanceGraph &graph) {
     }
     node.escapes = escapes;
     node.escape = escapeKind;
+
+    if (node.shapeEvidence.empty()) {
+      node.shapeEvidence = describeShapeEvidence(node);
+    }
   }
 }
 
@@ -177,7 +234,10 @@ ImplicitAllocationAnalysis::build(mlir::ModuleOp module) const {
     node.source = describeLocation(op->getLoc());
     node.loopDepth = computeLoopDepth(op);
     node.compilerGenerated = semantics.compilerGenerated;
+    node.typedFlangMatch = semantics.typedFlangMatch;
     node.shape = inferShapeInfo(*op);
+    node.aliasRisk = hasConservativeAliasRisk(*op);
+    node.aliasEvidence = describeAliasEvidence(*op);
     node.estimate.byteCount = estimateBytes(node.shape);
     if (node.shape.elementByteWidth != 0 && !node.shape.extents.empty() &&
         !node.shape.hasDynamicExtent && node.estimate.byteCount) {
@@ -191,6 +251,8 @@ ImplicitAllocationAnalysis::build(mlir::ModuleOp module) const {
   connectDataflowEdges(graph);
   connectAliasEdges(graph);
   propagateConstructs(graph);
+  deriveNodeFacts(graph);
+  propagateAssignmentShapeEvidence(graph);
   deriveNodeFacts(graph);
   return graph;
 }

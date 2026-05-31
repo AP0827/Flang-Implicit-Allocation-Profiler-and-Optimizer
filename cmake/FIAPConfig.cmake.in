@@ -1,0 +1,12 @@
+@PACKAGE_INIT@
+
+include(CMakeFindDependencyMacro)
+
+find_dependency(LLVM CONFIG)
+find_dependency(MLIR CONFIG)
+set(FIAP_HAVE_FLANG @FIAP_HAVE_FLANG@)
+if(FIAP_HAVE_FLANG)
+  find_dependency(Flang CONFIG)
+endif()
+
+include("${CMAKE_CURRENT_LIST_DIR}/FIAPTargets.cmake")
